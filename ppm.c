@@ -1,13 +1,16 @@
 #include <alsa/asoundlib.h>
+#include <limits.h>
 #include <linux/input.h>
 #include <linux/uinput.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 
 #define CLEAR() printf("\033[H\033[J")
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
+#define BUTTON_RELEASE_TIME_MS 100
 
 bool debug = false;
 
@@ -51,7 +54,17 @@ typedef struct {
   control_type type;
   int code;
   int threshold;
+  // CTL_MULTI specific fields:
+  int num_positions; // 2, 3, or 4
+  int thresholds[3]; // up to 3 thresholds for 4 positions
+  int codes[4];      // button code for each position
+  int hysteresis;    // hysteresis margin (e.g., 10)
 } channel;
+
+typedef struct {
+  int pressed_button_code;    // Which button is currently pressed (-1 if none)
+  struct timespec press_time; // When the button was pressed
+} button_state_t;
 
 channel channels[8] = {
     // clang-format off
@@ -59,9 +72,9 @@ channel channels[8] = {
   {CTL_AXIS,  ABS_Y},
   {CTL_AXIS,  ABS_RX},
   {CTL_AXIS,  ABS_RY},
-  {CTL_BUTTON,  BTN_A, 240},
-  {CTL_BUTTON,  BTN_B, 240},
-  {CTL_MULTI,  0},
+  {CTL_MULTI,  0, 0, 2, {250}, {BTN_1, BTN_2}}, // arm/disarm
+  {CTL_BUTTON,  BTN_3, 250}, // viewpoint
+  {CTL_MULTI,  0, 0, 3, {250, 350}, {BTN_5, BTN_6, BTN_7}, 10}, // flight mode
   {CTL_AXIS,  ABS_Z},
     // clang-format on
 };
@@ -256,6 +269,69 @@ void read_pulse_alsa(state_t *state) {
   }
 }
 
+// Determine which position a value maps to for a multi-position switch
+int determine_position(int value, channel *ch) {
+  // For a channel with N positions, we have N-1 thresholds
+  // Position 0: value < threshold[0]
+  // Position 1: threshold[0] <= value < threshold[1]
+  // Position N-1: value >= threshold[N-2]
+
+  for (int i = 0; i < ch->num_positions - 1; i++) {
+    if (value < ch->thresholds[i]) {
+      return i;
+    }
+  }
+  return ch->num_positions - 1; // highest position
+}
+
+// Determine position with hysteresis to prevent bouncing
+int determine_position_with_hysteresis(int value, int last_pos, channel *ch) {
+  if (last_pos < 0) {
+    // First time: no hysteresis
+    return determine_position(value, ch);
+  }
+
+  // Check if we should stay in current position
+  // We stay if value is within threshold boundaries +/- hysteresis
+
+  int lower_threshold = (last_pos > 0) ? ch->thresholds[last_pos - 1] : INT_MIN;
+  int upper_threshold =
+      (last_pos < ch->num_positions - 1) ? ch->thresholds[last_pos] : INT_MAX;
+
+  // Apply hysteresis margins
+  if (lower_threshold != INT_MIN)
+    lower_threshold -= ch->hysteresis;
+  if (upper_threshold != INT_MAX)
+    upper_threshold += ch->hysteresis;
+
+  if (value >= lower_threshold && value < upper_threshold) {
+    return last_pos; // stay in current position
+  }
+
+  // Value has moved outside hysteresis zone, determine new position
+  return determine_position(value, ch);
+}
+
+// Returns true if 100ms has elapsed since press_time
+bool should_auto_release(struct timespec *press_time) {
+  struct timespec now;
+  clock_gettime(CLOCK_MONOTONIC, &now);
+
+  long elapsed_ms = (now.tv_sec - press_time->tv_sec) * 1000 +
+                    (now.tv_nsec - press_time->tv_nsec) / 1000000;
+
+  return elapsed_ms >= BUTTON_RELEASE_TIME_MS;
+}
+
+void send_release_event(int uinput, int button_code) {
+  struct input_event ev;
+  memset(&ev, 0, sizeof(ev));
+  ev.type = EV_KEY;
+  ev.code = button_code;
+  ev.value = 0;
+  write(uinput, &ev, sizeof(ev));
+}
+
 int main(int argc, char *argv[]) {
   int i;
   int err;
@@ -289,7 +365,15 @@ int main(int argc, char *argv[]) {
         break;
       case CTL_MULTI:
         err = ioctl(uinput, UI_SET_EVBIT, EV_KEY);
-        // XXX: handle multi key
+        // Register all button codes for this multi-position switch
+        for (int j = 0; j < channels[i].num_positions; j++) {
+          err = ioctl(uinput, UI_SET_KEYBIT, channels[i].codes[j]);
+          if (err < 0) {
+            fprintf(stderr,
+                    "Failed to register button code %d for channel %d\n",
+                    channels[i].codes[j], i);
+          }
+        }
         break;
       default:
         fprintf(stderr, "invalid control type: %d\n", channels[i].type);
@@ -328,8 +412,35 @@ init: // look for a sync pulse
   if (debug)
     printf("\n");
 
-  int last_value[ARRAY_SIZE(channels)] = {0};
+  int last_position[ARRAY_SIZE(channels)];
+  button_state_t button_states[ARRAY_SIZE(channels)];
+
+  // Initialize last_position array
+  for (int i = 0; i < ARRAY_SIZE(channels); i++) {
+    if (channels[i].type == CTL_MULTI) {
+      last_position[i] = -1; // indicates uninitialized state
+    } else {
+      last_position[i] = 0; // not used for other channel types
+    }
+  }
+
+  // Initialize button_states array
+  for (int i = 0; i < ARRAY_SIZE(channels); i++) {
+    button_states[i].pressed_button_code = -1;
+  }
+
   for (;;) {
+    // Check for auto-release (100ms timeout)
+    for (i = 0; i < ARRAY_SIZE(channels); i++) {
+      if (channels[i].type == CTL_MULTI &&
+          button_states[i].pressed_button_code != -1) {
+        if (should_auto_release(&button_states[i].press_time)) {
+          send_release_event(uinput, button_states[i].pressed_button_code);
+          button_states[i].pressed_button_code = -1;
+        }
+      }
+    }
+
     for (i = 0; i < ARRAY_SIZE(channels); i++) {
       struct input_event ev;
       int value;
@@ -365,20 +476,36 @@ init: // look for a sync pulse
         else
           ev.value = 1;
         break;
-      case CTL_MULTI:
-        // XXX: not implemented
-        continue;
+      case CTL_MULTI: {
+        ev.type = EV_KEY;
+        // Determine which position the switch is in
+        int new_pos = determine_position_with_hysteresis(
+            value, last_position[i], &channels[i]);
+
+        if (new_pos != last_position[i]) {
+          // Release the previously pressed button immediately
+          if (button_states[i].pressed_button_code != -1) {
+            send_release_event(uinput, button_states[i].pressed_button_code);
+          }
+
+          // Send new button press
+          ev.code = channels[i].codes[new_pos];
+          ev.value = 1;
+          last_position[i] = new_pos;
+
+          // Record button press state and timestamp
+          button_states[i].pressed_button_code = ev.code;
+          clock_gettime(CLOCK_MONOTONIC, &button_states[i].press_time);
+        }
+        break;
+      }
       }
 
-      last_value[i] = value;
-
-      if (debug) {
+      if (debug)
         printf("%f ", 1000 * (ev.value / rate) - 0.028);
-      } else {
-        // send value to uinput
-        if (channels[i].type != CTL_MULTI)
-          err = write(uinput, &ev, sizeof(ev));
-      }
+
+      // send value to uinput
+      err = write(uinput, &ev, sizeof(ev));
     }
 
     printf("---\n");
