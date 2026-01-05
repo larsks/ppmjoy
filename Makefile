@@ -1,5 +1,7 @@
-ppm: ppm.c
-	gcc -Wall -lasound ppm.c -o ppm
+CFLAGS=-Wno-unused-but-set-variable -Wall -g
 
-debug: ppm.c
-	gcc -Wall -lasound ppm.c -g -o ppm
+ppm: ppm.o
+	gcc ppm.o -o ppm -lasound
+
+clean:
+	rm -f ppm.o ppm
