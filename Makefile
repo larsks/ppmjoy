@@ -1,7 +1,12 @@
-CFLAGS=-Wno-unused-but-set-variable -Wall -g
+EXE = ppmjoy
+SRCS = ppm.c must.c
+OBJS = $(SRCS:.c=.o)
 
-ppm: ppm.o
-	gcc ppm.o -o ppm -lasound
+CFLAGS=-Wno-unused-but-set-variable -Wall -g
+LIBS=-lasound
+
+$(EXE): $(OBJS)
+	$(CC) $(OBJS) -o $@ $(LDFLAGS) $(LIBS)
 
 clean:
-	rm -f ppm.o ppm
+	rm -f $(OBJS) $(EXE)

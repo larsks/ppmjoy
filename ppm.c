@@ -8,11 +8,14 @@
 #include <stdlib.h>
 #include <time.h>
 
+#include <getopt.h>
+#include <unistd.h>
+
+#include "must.h"
+
 #define CLEAR() printf("\033[H\033[J")
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
 #define BUTTON_RELEASE_TIME_MS 100
-
-bool debug = false;
 
 typedef struct {
   unsigned int rate;         // soundcard sampling rate in Hz
@@ -75,7 +78,14 @@ channel channels[8] = {
   {CTL_MULTI,  0, 0, 2, {250}, {BTN_1, BTN_2}}, // arm/disarm
   {CTL_BUTTON,  BTN_3, 250}, // viewpoint
   {CTL_MULTI,  0, 0, 3, {250, 350}, {BTN_5, BTN_6, BTN_7}, 10}, // flight mode
-  {CTL_AXIS,  ABS_Z},
+  {CTL_MULTI,  0, 0, 2, {250}, {BTN_8, BTN_9}},
+    // clang-format on
+};
+
+struct option options[] = {
+    // clang-format off
+  {"device", 1, NULL, 'd'},
+  {NULL, 0, NULL, 0},
     // clang-format on
 };
 
@@ -101,55 +111,57 @@ int init_alsa(state_t *state, char *dev, unsigned int rate, unsigned int period,
   int err;
   snd_pcm_hw_params_t *hw_params = 0;
 
+  fprintf(stderr, "opening alsa device %s\n", dev);
+
   if ((err = snd_pcm_open(&state->handle, dev, SND_PCM_STREAM_CAPTURE, 0)) <
       0) {
-    fprintf(stderr, "cannot open audio device %s (%s)\n", dev,
+    fprintf(stderr, "failed open audio device %s (%s)\n", dev,
             snd_strerror(err));
     goto error;
   }
 
   if ((err = snd_pcm_hw_params_malloc(&hw_params)) < 0) {
-    fprintf(stderr, "cannot allocate hardware parameter structure (%s)\n",
+    fprintf(stderr, "failed to allocate hardware parameter structure (%s)\n",
             snd_strerror(err));
     goto error;
   }
 
   if ((err = snd_pcm_hw_params_any(state->handle, hw_params)) < 0) {
-    fprintf(stderr, "cannot initialize hardware parameter structure (%s)\n",
+    fprintf(stderr, "failed to initialize hardware parameter structure (%s)\n",
             snd_strerror(err));
     goto error;
   }
 
   if ((err = snd_pcm_hw_params_set_access(state->handle, hw_params,
                                           SND_PCM_ACCESS_RW_INTERLEAVED)) < 0) {
-    fprintf(stderr, "cannot set access type (%s)\n", snd_strerror(err));
+    fprintf(stderr, "failed to set access type (%s)\n", snd_strerror(err));
     goto error;
   }
 
   if ((err = snd_pcm_hw_params_set_format(state->handle, hw_params,
                                           SND_PCM_FORMAT_S16_LE)) < 0) {
-    fprintf(stderr, "cannot set sample format (%s)\n", snd_strerror(err));
+    fprintf(stderr, "failed to set sample format (%s)\n", snd_strerror(err));
     goto error;
   }
 
   if ((err = snd_pcm_hw_params_set_rate_near(state->handle, hw_params, &rate,
                                              0)) < 0) {
-    fprintf(stderr, "cannot set sample rate (%s)\n", snd_strerror(err));
+    fprintf(stderr, "failed to set sample rate (%s)\n", snd_strerror(err));
     goto error;
   }
 
   if ((err = snd_pcm_hw_params_set_channels(state->handle, hw_params, 2)) < 0) {
-    fprintf(stderr, "cannot set channel count (%s)\n", snd_strerror(err));
+    fprintf(stderr, "failed to set channel count (%s)\n", snd_strerror(err));
     goto error;
   }
 
   if ((err = snd_pcm_hw_params(state->handle, hw_params)) < 0) {
-    fprintf(stderr, "cannot set parameters (%s)\n", snd_strerror(err));
+    fprintf(stderr, "failed to set parameters (%s)\n", snd_strerror(err));
     goto error;
   }
 
   if ((err = snd_pcm_prepare(state->handle)) < 0) {
-    fprintf(stderr, "cannot prepare audio interface for use (%s)\n",
+    fprintf(stderr, "failed to prepare audio interface for use (%s)\n",
             snd_strerror(err));
     goto error;
   }
@@ -218,6 +230,7 @@ bool datum_to_pulse(int16_t datum, pulse_params_t *params, pulse_t *p) {
         p->type = INVALID; // pulse is too long
     }
 
+    /*
     if (debug) {
       switch (p->type) {
       case LOW:
@@ -234,6 +247,7 @@ bool datum_to_pulse(int16_t datum, pulse_params_t *params, pulse_t *p) {
       }
       printf("%zu ", p->length);
     }
+    */
   }
 
   return complete;
@@ -332,85 +346,92 @@ void send_release_event(int uinput, int button_code) {
   write(uinput, &ev, sizeof(ev));
 }
 
+int init_uinput(state_t *state) {
+  /* initialize uinput joystick stuff */
+  int uinput_fd;
+  uinput_fd = open("/dev/uinput", O_WRONLY | O_NONBLOCK);
+  if (uinput_fd < 0) {
+    fprintf(stderr, "/dev/uinput: %s\n", strerror(errno));
+    exit(1);
+  }
+
+  for (int i = 0; i < ARRAY_SIZE(channels); i++) {
+    switch (channels[i].type) {
+    case CTL_AXIS:
+      MUST(ioctl(uinput_fd, UI_SET_EVBIT, EV_ABS), "failed to configure axis");
+      MUST(ioctl(uinput_fd, UI_SET_ABSBIT, channels[i].code),
+           "failed to configure axis");
+      break;
+    case CTL_BUTTON:
+      MUST(ioctl(uinput_fd, UI_SET_EVBIT, EV_KEY),
+           "failed to configure button");
+      MUST(ioctl(uinput_fd, UI_SET_KEYBIT, channels[i].code),
+           "failed to configure button");
+      break;
+    case CTL_MULTI:
+      MUST(ioctl(uinput_fd, UI_SET_EVBIT, EV_KEY),
+           "failed to configure multi-key control");
+      // Register all button codes for this multi-position switch
+      for (int j = 0; j < channels[i].num_positions; j++) {
+        MUST(ioctl(uinput_fd, UI_SET_KEYBIT, channels[i].codes[j]),
+             "failed to configure multi-key control");
+      }
+      break;
+    default:
+      fprintf(stderr, "invalid control type: %d\n", channels[i].type);
+      exit(1);
+    }
+  }
+
+  struct uinput_user_dev uidev;
+  memset(&uidev, 0, sizeof(uidev));
+  snprintf(uidev.name, UINPUT_MAX_NAME_SIZE, "ppmjoy");
+  uidev.id.bustype = BUS_USB;
+  uidev.id.vendor = 0x1234;
+  uidev.id.product = 0xfedc;
+  uidev.id.version = 1;
+  for (int i = 0; i < 6; i++) {
+    uidev.absmax[i] = (2500 * state->params.rate) / 1000000;
+    // set maximum values to a pulse length of 2.5ms
+  }
+  MUST(write(uinput_fd, &uidev, sizeof(uidev)), "failed to configure uinput");
+  MUST(ioctl(uinput_fd, UI_DEV_CREATE), "failed to create uinput device");
+
+  return uinput_fd;
+}
+
 int main(int argc, char *argv[]) {
   int i;
-  int err;
+  int c;
+  int uinput_fd;
+  char *alsa_device;
 
-  CLEAR();
+  if ((alsa_device = getenv("PPMJOY_ALSA_DEVICE")) == NULL) {
+    alsa_device = "default";
+  }
+
+  while (-1 != (c = getopt_long(argc, argv, "d:", options, NULL))) {
+    switch (c) {
+    case 'd':
+      alsa_device = strdup(optarg);
+      break;
+    }
+  }
 
   /* initialize alsa stuff */
   state_t state;
-  init_alsa(&state, "hw:2", 1000000, 10, 5, 32700);
-  double rate = state.params.rate;
+  init_alsa(&state, alsa_device, 1000000, 10, 5, 32700);
 
-  /* initialize uinput joystick stuff */
-  int uinput;
-  if (!debug) {
-    uinput = open("/dev/uinput", O_WRONLY | O_NONBLOCK);
-    if (uinput < 0) {
-      fprintf(stderr, "/dev/uinput: %s\n", strerror(errno));
-      exit(1);
-    }
-
-    fprintf(stderr, "start configuring channels\n");
-    for (int i = 0; i < ARRAY_SIZE(channels); i++) {
-      switch (channels[i].type) {
-      case CTL_AXIS:
-        err = ioctl(uinput, UI_SET_EVBIT, EV_ABS);
-        err = ioctl(uinput, UI_SET_ABSBIT, channels[i].code);
-        break;
-      case CTL_BUTTON:
-        err = ioctl(uinput, UI_SET_EVBIT, EV_KEY);
-        err = ioctl(uinput, UI_SET_KEYBIT, channels[i].code);
-        break;
-      case CTL_MULTI:
-        err = ioctl(uinput, UI_SET_EVBIT, EV_KEY);
-        // Register all button codes for this multi-position switch
-        for (int j = 0; j < channels[i].num_positions; j++) {
-          err = ioctl(uinput, UI_SET_KEYBIT, channels[i].codes[j]);
-          if (err < 0) {
-            fprintf(stderr,
-                    "Failed to register button code %d for channel %d\n",
-                    channels[i].codes[j], i);
-          }
-        }
-        break;
-      default:
-        fprintf(stderr, "invalid control type: %d\n", channels[i].type);
-        exit(1);
-      }
-    }
-    fprintf(stderr, "done configuring channels\n");
-
-    struct uinput_user_dev uidev;
-    memset(&uidev, 0, sizeof(uidev));
-    snprintf(uidev.name, UINPUT_MAX_NAME_SIZE, "ppmjoy");
-    uidev.id.bustype = BUS_USB;
-    uidev.id.vendor = 0x1234;
-    uidev.id.product = 0xfedc;
-    uidev.id.version = 1;
-    for (i = 0; i < 6; i++) {
-      uidev.absmax[i] = (2500 * state.params.rate) / 1000000;
-      // set maximum values to a pulse length of 2.5ms
-    }
-    err = write(uinput, &uidev, sizeof(uidev));
-    err = ioctl(uinput, UI_DEV_CREATE);
-  }
+  uinput_fd = init_uinput(&state);
 
   /* read pulses from TX and forward them to uinput */
 
 init: // look for a sync pulse
-  if (debug)
-    printf("init\n");
-
   for (;;) {
     read_pulse_alsa(&state);
     if (state.pulse.type == SYNC)
       break; // found a complete sync pulse
   }
-
-  if (debug)
-    printf("\n");
 
   int last_position[ARRAY_SIZE(channels)];
   button_state_t button_states[ARRAY_SIZE(channels)];
@@ -435,7 +456,7 @@ init: // look for a sync pulse
       if (channels[i].type == CTL_MULTI &&
           button_states[i].pressed_button_code != -1) {
         if (should_auto_release(&button_states[i].press_time)) {
-          send_release_event(uinput, button_states[i].pressed_button_code);
+          send_release_event(uinput_fd, button_states[i].pressed_button_code);
           button_states[i].pressed_button_code = -1;
         }
       }
@@ -446,21 +467,17 @@ init: // look for a sync pulse
       int value;
       memset(&ev, 0, sizeof(ev));
 
-      printf("[%d] ", i);
-
       // look for a high pulse
       read_pulse_alsa(&state);
       if (state.pulse.type != HIGH)
         goto init;
       value = state.pulse.length;
-      printf("%ld ", state.pulse.length);
 
       // followed by a low pulse
       read_pulse_alsa(&state);
       if (state.pulse.type != LOW)
         goto init;
       value += state.pulse.length;
-      printf("%ld\n", state.pulse.length);
 
       switch (channels[i].type) {
       case CTL_AXIS:
@@ -485,7 +502,7 @@ init: // look for a sync pulse
         if (new_pos != last_position[i]) {
           // Release the previously pressed button immediately
           if (button_states[i].pressed_button_code != -1) {
-            send_release_event(uinput, button_states[i].pressed_button_code);
+            send_release_event(uinput_fd, button_states[i].pressed_button_code);
           }
 
           // Send new button press
@@ -501,15 +518,9 @@ init: // look for a sync pulse
       }
       }
 
-      if (debug)
-        printf("%f ", 1000 * (ev.value / rate) - 0.028);
-
       // send value to uinput
-      err = write(uinput, &ev, sizeof(ev));
+      MUST(write(uinput_fd, &ev, sizeof(ev)), "failed to write uinput event");
     }
-
-    printf("---\n");
-    printf("\033[1;1H");
 
     // skip high pulse and following sync pulse
     read_pulse_alsa(&state);
@@ -519,13 +530,10 @@ init: // look for a sync pulse
     read_pulse_alsa(&state);
     if (state.pulse.type != SYNC)
       goto init;
-
-    if (debug)
-      printf("\n");
   }
 
   destroy_alsa(&state);
-  ioctl(uinput, UI_DEV_DESTROY);
-  close(uinput);
+  ioctl(uinput_fd, UI_DEV_DESTROY);
+  close(uinput_fd);
   exit(0);
 }
