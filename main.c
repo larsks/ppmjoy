@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/time.h>
 #include <time.h>
 
 #include <getopt.h>
@@ -15,6 +16,8 @@
 #include "must.h"
 
 #define CLEAR() printf("\033[H\033[J")
+#define HOME() printf("\033[H")
+
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
 #define BUTTON_RELEASE_TIME_MS 100
 
@@ -70,9 +73,14 @@ struct option options[] = {
   {"help", 0, NULL, 'h'},
   {"device", 1, NULL, 'd'},
   {"config", 1, NULL, 'f'},
+  {"verbose", 0, NULL, 'v'},
+  {"monitor", 0, NULL, 'm'},
   {NULL, 0, NULL, 0},
     // clang-format on
 };
+
+int verbose = 0;
+int monitor = 0;
 
 void init_pulse(pulse_t *p) {
   if (p) {
@@ -95,7 +103,8 @@ int init_alsa(state_t *state, char *dev, unsigned int rate, unsigned int period,
   int err;
   snd_pcm_hw_params_t *hw_params = 0;
 
-  fprintf(stderr, "opening alsa device %s\n", dev);
+  if (verbose)
+    fprintf(stderr, "opening alsa device %s\n", dev);
 
   if ((err = snd_pcm_open(&state->handle, dev, SND_PCM_STREAM_CAPTURE, 0)) <
       0) {
@@ -334,6 +343,10 @@ void send_release_event(int uinput, int button_code) {
 int init_uinput(state_t *state) {
   /* initialize uinput joystick stuff */
   int uinput_fd;
+
+  if (verbose)
+    fprintf(stderr, "configuring uinput\n");
+
   uinput_fd = open("/dev/uinput", O_WRONLY | O_NONBLOCK);
   if (uinput_fd < 0) {
     fprintf(stderr, "/dev/uinput: %s\n", strerror(errno));
@@ -343,17 +356,25 @@ int init_uinput(state_t *state) {
   for (int i = 0; i < num_channels; i++) {
     switch (channels[i].type) {
     case CTL_AXIS:
+      if (verbose > 1)
+        fprintf(stderr, "  channel %i -> axis %d:%d\n", i, EV_ABS,
+                channels[i].code);
       MUST(ioctl(uinput_fd, UI_SET_EVBIT, EV_ABS), "failed to configure axis");
       MUST(ioctl(uinput_fd, UI_SET_ABSBIT, channels[i].code),
            "failed to configure axis");
       break;
     case CTL_BUTTON:
+      if (verbose > 1)
+        fprintf(stderr, "  channel %i -> button %d:%d\n", i, EV_KEY,
+                channels[i].code);
       MUST(ioctl(uinput_fd, UI_SET_EVBIT, EV_KEY),
            "failed to configure button");
       MUST(ioctl(uinput_fd, UI_SET_KEYBIT, channels[i].code),
            "failed to configure button");
       break;
     case CTL_MULTI:
+      if (verbose > 1)
+        fprintf(stderr, "  channel %i -> multi %d:...\n", i, EV_KEY);
       MUST(ioctl(uinput_fd, UI_SET_EVBIT, EV_KEY),
            "failed to configure multi-key control");
       // Register all button codes for this multi-position switch
@@ -386,8 +407,29 @@ int init_uinput(state_t *state) {
 }
 
 void show_usage(FILE *out) {
-  fprintf(out, "ppmjoy: usage: ppmjoy [--device|-d alsa_device] "
-               "[--config|-f ppmjoy_config]\n");
+  fprintf(out, "ppmjoy: usage: ppmjoy [--device|-d alsa_device]"
+               " [--config|-f ppmjoy_config]"
+               " [--monitor|-m]"
+               " [--verbose|-v]"
+               "\n");
+}
+
+const char *controller2str(int type) {
+  char *name = "unknown";
+
+  switch (type) {
+  case CTL_AXIS:
+    name = "axis";
+    break;
+  case CTL_BUTTON:
+    name = "button";
+    break;
+  case CTL_MULTI:
+    name = "multi";
+    break;
+  }
+
+  return name;
 }
 
 int main(int argc, char *argv[]) {
@@ -405,7 +447,7 @@ int main(int argc, char *argv[]) {
     config_path = "~/.config/ppmjoy.json";
   }
 
-  while (-1 != (c = getopt_long(argc, argv, "d:f:h", options, NULL))) {
+  while (-1 != (c = getopt_long(argc, argv, "d:f:hvm", options, NULL))) {
     switch (c) {
     case 'h':
       show_usage(stdout);
@@ -417,6 +459,12 @@ int main(int argc, char *argv[]) {
     case 'f':
       config_path = strdup(optarg);
       break;
+    case 'v':
+      verbose++;
+      break;
+    case 'm':
+      monitor = 1;
+      break;
 
     case '?':
       show_usage(stderr);
@@ -425,6 +473,8 @@ int main(int argc, char *argv[]) {
   }
 
   // Attempt to load config
+  if (verbose)
+    fprintf(stderr, "loading configuration from %s\n", config_path);
   channels = load_config(config_path, &num_channels);
 
   // Fallback to defaults
@@ -440,15 +490,6 @@ int main(int argc, char *argv[]) {
   init_alsa(&state, alsa_device, 1000000, 10, 5, 32700);
 
   uinput_fd = init_uinput(&state);
-
-  /* read pulses from TX and forward them to uinput */
-
-init: // look for a sync pulse
-  for (;;) {
-    read_pulse_alsa(&state);
-    if (state.pulse.type == SYNC)
-      break; // found a complete sync pulse
-  }
 
   int last_position[num_channels];
   button_state_t button_states[num_channels];
@@ -466,6 +507,18 @@ init: // look for a sync pulse
   for (int i = 0; i < num_channels; i++) {
     button_states[i].pressed_button_code = -1;
   }
+
+  /* read pulses from TX and forward them to uinput */
+
+init: // look for a sync pulse
+  for (;;) {
+    read_pulse_alsa(&state);
+    if (state.pulse.type == SYNC)
+      break; // found a complete sync pulse
+  }
+
+  if (monitor)
+    CLEAR();
 
   for (;;) {
     // Check for auto-release (100ms timeout)
@@ -533,6 +586,13 @@ init: // look for a sync pulse
         }
         break;
       }
+      }
+
+      if (monitor) {
+        if (i == 0)
+          HOME();
+        printf("[%d] %s %d -> %d:%d\n", i, controller2str(channels[i].type),
+               value, ev.type, ev.code);
       }
 
       // send value to uinput
