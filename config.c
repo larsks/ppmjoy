@@ -101,7 +101,7 @@ const char *code2str(const int code, const code_map_t *map) {
     }
   }
 
-  return "unknown";
+  return NULL;
 }
 
 const char *axis2str(const int code) { return code2str(code, axis_codes); }

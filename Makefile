@@ -2,20 +2,34 @@ EXE = ppmjoy
 SRCS = main.c must.c config.c vendor/cJSON/cJSON.c event.c
 OBJS = $(SRCS:.c=.o)
 
-CPPFLAGS=-Ivendor/cJSON
+CPPFLAGS=-I. -Ivendor/cJSON -Ivendor/unity/src
 CFLAGS=-Wall -g
 LIBS=-lasound
 
+TEST_SRCS = $(wildcard tests/test_*.c)
+TEST_OBJS = $(TEST_SRCS:.c=.o)
+TESTS = $(TEST_SRCS:.c=)
+
 all: $(EXE)
+
+test: $(TESTS)
+	@for test in $(TESTS); do \
+		$$test || exit 1; \
+	done
+
+tests/test_config: tests/test_config.o config.o must.o vendor/unity/src/unity.o vendor/cJSON/cJSON.o
 
 $(EXE): $(OBJS)
 	$(CC) $(OBJS) -o $@ $(LDFLAGS) $(LIBS)
 
 clean:
 	rm -f $(OBJS) $(EXE)
+	rm -f $(TEST_OBJS) $(TESTS)
 
-# Generated w/ `gcc -MM *.c`
-config.o: config.c config.h must.h vendor/cJSON/cJSON.h
-event.o: event.c event.h config.h
-main.o: main.c config.h event.h must.h
-must.o: must.c must.h
+realclean: clean
+	rm -f makefile.deps
+
+makefile.deps: $(SRCS)
+	$(CC) -MM $(CPPFLAGS) $(SRCS) $(TEST_SRCS) > $@ || { rm -f $@; exit 1; }
+
+include makefile.deps

@@ -1,1 +1,3 @@
 /ppmjoy
+makefile.deps
+/tests/test_config
