@@ -2,7 +2,7 @@ EXE = ppmjoy
 SRCS = main.c must.c config.c cJSON.c event.c
 OBJS = $(SRCS:.c=.o)
 
-CFLAGS=-Wno-unused-but-set-variable -Wall -g
+CFLAGS=-Wall -g
 LIBS=-lasound
 
 all: $(EXE)
