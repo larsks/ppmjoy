@@ -2,6 +2,7 @@
 #define _CONFIG_H
 
 #include <linux/input.h>
+#include <unistd.h>
 
 typedef enum {
   CTL_AXIS,
@@ -24,6 +25,12 @@ typedef struct {
 // Returns: pointer to dynamically allocated channel array, or NULL on error
 // Sets *num_channels to the number of channels loaded
 channel *load_config(const char *config_path, int *num_channels);
+
+// convert an axis code to a symbolic name
+const char *axis2str(const int code);
+
+// convert a button code to a symbolic name
+const char *button2str(const int code);
 
 // Free configuration memory
 void free_config(channel *channels);

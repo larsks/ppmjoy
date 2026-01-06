@@ -14,7 +14,7 @@ typedef struct {
 } code_map_t;
 
 // Axis codes from linux/input.h
-static const code_map_t axis_codes[] = {
+const code_map_t axis_codes[] = {
     {"ABS_X", ABS_X},
     {"ABS_Y", ABS_Y},
     {"ABS_Z", ABS_Z},
@@ -38,7 +38,7 @@ static const code_map_t axis_codes[] = {
 };
 
 // Button codes from linux/input.h
-static const code_map_t button_codes[] = {
+const code_map_t button_codes[] = {
     {"BTN_0", BTN_0},
     {"BTN_1", BTN_1},
     {"BTN_2", BTN_2},
@@ -93,6 +93,19 @@ static int lookup_code(const char *name, const code_map_t *map) {
   }
   return -1;
 }
+
+const char *code2str(const int code, const code_map_t *map) {
+  for (int i = 0; map[i].name != NULL; i++) {
+    if (map[i].value == code) {
+      return map[i].name;
+    }
+  }
+
+  return "unknown";
+}
+
+const char *axis2str(const int code) { return code2str(code, axis_codes); }
+const char *button2str(const int code) { return code2str(code, button_codes); }
 
 // Expand path with tilde and environment variables
 // Returns malloc'd string, caller must free

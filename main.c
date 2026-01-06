@@ -357,16 +357,16 @@ int init_uinput(state_t *state) {
     switch (channels[i].type) {
     case CTL_AXIS:
       if (verbose > 1)
-        fprintf(stderr, "  channel %i -> axis %d:%d\n", i, EV_ABS,
-                channels[i].code);
+        fprintf(stderr, "  channel %i -> %7s %s\n", i, "axis",
+                axis2str(channels[i].code));
       MUST(ioctl(uinput_fd, UI_SET_EVBIT, EV_ABS), "failed to configure axis");
       MUST(ioctl(uinput_fd, UI_SET_ABSBIT, channels[i].code),
            "failed to configure axis");
       break;
     case CTL_BUTTON:
       if (verbose > 1)
-        fprintf(stderr, "  channel %i -> button %d:%d\n", i, EV_KEY,
-                channels[i].code);
+        fprintf(stderr, "  channel %i -> %7s %s\n", i, "button",
+                button2str(channels[i].code));
       MUST(ioctl(uinput_fd, UI_SET_EVBIT, EV_KEY),
            "failed to configure button");
       MUST(ioctl(uinput_fd, UI_SET_KEYBIT, channels[i].code),
@@ -374,14 +374,18 @@ int init_uinput(state_t *state) {
       break;
     case CTL_MULTI:
       if (verbose > 1)
-        fprintf(stderr, "  channel %i -> multi %d:...\n", i, EV_KEY);
+        fprintf(stderr, "  channel %i -> %7s ", i, "multi");
       MUST(ioctl(uinput_fd, UI_SET_EVBIT, EV_KEY),
            "failed to configure multi-key control");
       // Register all button codes for this multi-position switch
       for (int j = 0; j < channels[i].num_positions; j++) {
+        if (verbose > 1)
+          fprintf(stderr, "%s ", button2str(channels[i].codes[j]));
         MUST(ioctl(uinput_fd, UI_SET_KEYBIT, channels[i].codes[j]),
              "failed to configure multi-key control");
       }
+      if (verbose > 1)
+        fprintf(stderr, "\n");
       break;
     default:
       fprintf(stderr, "invalid control type: %d\n", channels[i].type);
