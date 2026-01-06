@@ -12,3 +12,9 @@ $(EXE): $(OBJS)
 
 clean:
 	rm -f $(OBJS) $(EXE)
+
+# Generated w/ `gcc -MM *.c`
+cJSON.o: cJSON.c cJSON.h
+config.o: config.c config.h cJSON.h must.h
+main.o: main.c config.h must.h
+must.o: must.c must.h
