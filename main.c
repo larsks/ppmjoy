@@ -212,6 +212,7 @@ int init_uinput(state_t *state) {
   }
 
   struct uinput_user_dev uidev;
+  char dev_name[128];
   memset(&uidev, 0, sizeof(uidev));
   snprintf(uidev.name, UINPUT_MAX_NAME_SIZE, "ppmjoy");
   uidev.id.bustype = BUS_USB;
@@ -224,6 +225,14 @@ int init_uinput(state_t *state) {
   }
   MUST(write(uinput_fd, &uidev, sizeof(uidev)), "failed to configure uinput");
   MUST(ioctl(uinput_fd, UI_DEV_CREATE), "failed to create uinput device");
+
+  if (app_config.verbose) {
+    if ((ioctl(uinput_fd, UI_GET_SYSNAME(sizeof(dev_name)), dev_name)) >= 0) {
+      fprintf(stderr,
+              "created new input device /sys/devices/virtual/input/%s\n",
+              dev_name);
+    }
+  }
 
   return uinput_fd;
 }
