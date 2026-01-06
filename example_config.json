@@ -1,0 +1,50 @@
+{
+	"channels": [
+		{
+			"type": "axis",
+			"code": "ABS_X"
+		},
+		{
+			"type": "axis",
+			"code": "ABS_Y"
+		},
+		{
+			"type": "axis",
+			"code": "ABS_RX"
+		},
+		{
+			"type": "axis",
+			"code": "ABS_RY"
+		},
+		{
+			"type": "multi",
+			"num_positions": 2,
+			"thresholds": [250],
+			"codes": ["BTN_1", "BTN_2"],
+			"hysteresis": 0,
+			"comment": "arm/disarm"
+		},
+		{
+			"type": "button",
+			"code": "BTN_3",
+			"threshold": 250,
+			"comment": "viewpoint"
+		},
+		{
+			"type": "multi",
+			"num_positions": 3,
+			"thresholds": [250, 350],
+			"codes": ["BTN_5", "BTN_6", "BTN_7"],
+			"hysteresis": 10,
+			"comment": "flight mode"
+		},
+		{
+			"type": "multi",
+			"num_positions": 2,
+			"thresholds": [250],
+			"codes": ["BTN_8", "BTN_9"],
+			"hysteresis": 10,
+			"comment": "currently unmapped in liftoff"
+		}
+	]
+}

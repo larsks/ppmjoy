@@ -11,6 +11,7 @@
 #include <getopt.h>
 #include <unistd.h>
 
+#include "config.h"
 #include "must.h"
 
 #define CLEAR() printf("\033[H\033[J")
@@ -47,44 +48,27 @@ typedef struct {
   snd_pcm_t *handle;
 } state_t;
 
-typedef enum {
-  CTL_AXIS,
-  CTL_BUTTON,
-  CTL_MULTI,
-} control_type;
-
-typedef struct {
-  control_type type;
-  int code;
-  int threshold;
-  // CTL_MULTI specific fields:
-  int num_positions; // 2, 3, or 4
-  int thresholds[3]; // up to 3 thresholds for 4 positions
-  int codes[4];      // button code for each position
-  int hysteresis;    // hysteresis margin (e.g., 10)
-} channel;
-
 typedef struct {
   int pressed_button_code;    // Which button is currently pressed (-1 if none)
   struct timespec press_time; // When the button was pressed
 } button_state_t;
 
-channel channels[8] = {
+channel *channels = NULL;
+int num_channels = 0;
+
+static channel default_channels[] = {
     // clang-format off
   {CTL_AXIS,  ABS_X},
   {CTL_AXIS,  ABS_Y},
   {CTL_AXIS,  ABS_RX},
   {CTL_AXIS,  ABS_RY},
-  {CTL_MULTI,  0, 0, 2, {250}, {BTN_1, BTN_2}}, // arm/disarm
-  {CTL_BUTTON,  BTN_3, 250}, // viewpoint
-  {CTL_MULTI,  0, 0, 3, {250, 350}, {BTN_5, BTN_6, BTN_7}, 10}, // flight mode
-  {CTL_MULTI,  0, 0, 2, {250}, {BTN_8, BTN_9}},
     // clang-format on
 };
 
 struct option options[] = {
     // clang-format off
   {"device", 1, NULL, 'd'},
+  {"config", 1, NULL, 'f'},
   {NULL, 0, NULL, 0},
     // clang-format on
 };
@@ -106,7 +90,6 @@ void destroy_alsa(state_t *state) {
 
 int init_alsa(state_t *state, char *dev, unsigned int rate, unsigned int period,
               unsigned int sync_length, int16_t threshhold) {
-  assert(state);
   int ret = 0;
   int err;
   snd_pcm_hw_params_t *hw_params = 0;
@@ -115,7 +98,7 @@ int init_alsa(state_t *state, char *dev, unsigned int rate, unsigned int period,
 
   if ((err = snd_pcm_open(&state->handle, dev, SND_PCM_STREAM_CAPTURE, 0)) <
       0) {
-    fprintf(stderr, "failed open audio device %s (%s)\n", dev,
+    fprintf(stderr, "failed to open audio device %s (%s)\n", dev,
             snd_strerror(err));
     goto error;
   }
@@ -181,6 +164,7 @@ int init_alsa(state_t *state, char *dev, unsigned int rate, unsigned int period,
 error:
   ret = 1;
   destroy_alsa(state);
+  exit(1);
 
 cleanup:
   snd_pcm_hw_params_free(hw_params);
@@ -355,7 +339,7 @@ int init_uinput(state_t *state) {
     exit(1);
   }
 
-  for (int i = 0; i < ARRAY_SIZE(channels); i++) {
+  for (int i = 0; i < num_channels; i++) {
     switch (channels[i].type) {
     case CTL_AXIS:
       MUST(ioctl(uinput_fd, UI_SET_EVBIT, EV_ABS), "failed to configure axis");
@@ -405,21 +389,40 @@ int main(int argc, char *argv[]) {
   int c;
   int uinput_fd;
   char *alsa_device;
+  char *config_path = NULL;
 
   if ((alsa_device = getenv("PPMJOY_ALSA_DEVICE")) == NULL) {
     alsa_device = "default";
   }
 
-  while (-1 != (c = getopt_long(argc, argv, "d:", options, NULL))) {
+  if ((config_path = getenv("PPMJOY_CONFIG")) == NULL) {
+    config_path = "~/.config/ppmjoy.json";
+  }
+
+  while (-1 != (c = getopt_long(argc, argv, "d:f:", options, NULL))) {
     switch (c) {
     case 'd':
       alsa_device = strdup(optarg);
       break;
+    case 'f':
+      config_path = strdup(optarg);
+      break;
     }
+  }
+
+  // Attempt to load config
+  channels = load_config(config_path, &num_channels);
+
+  // Fallback to defaults
+  if (!channels) {
+    fprintf(stderr, "using default channel configuration\n");
+    channels = default_channels;
+    num_channels = ARRAY_SIZE(default_channels);
   }
 
   /* initialize alsa stuff */
   state_t state;
+  memset(&state, 0, sizeof(state));
   init_alsa(&state, alsa_device, 1000000, 10, 5, 32700);
 
   uinput_fd = init_uinput(&state);
@@ -433,11 +436,11 @@ init: // look for a sync pulse
       break; // found a complete sync pulse
   }
 
-  int last_position[ARRAY_SIZE(channels)];
-  button_state_t button_states[ARRAY_SIZE(channels)];
+  int last_position[num_channels];
+  button_state_t button_states[num_channels];
 
   // Initialize last_position array
-  for (int i = 0; i < ARRAY_SIZE(channels); i++) {
+  for (int i = 0; i < num_channels; i++) {
     if (channels[i].type == CTL_MULTI) {
       last_position[i] = -1; // indicates uninitialized state
     } else {
@@ -446,13 +449,13 @@ init: // look for a sync pulse
   }
 
   // Initialize button_states array
-  for (int i = 0; i < ARRAY_SIZE(channels); i++) {
+  for (int i = 0; i < num_channels; i++) {
     button_states[i].pressed_button_code = -1;
   }
 
   for (;;) {
     // Check for auto-release (100ms timeout)
-    for (i = 0; i < ARRAY_SIZE(channels); i++) {
+    for (i = 0; i < num_channels; i++) {
       if (channels[i].type == CTL_MULTI &&
           button_states[i].pressed_button_code != -1) {
         if (should_auto_release(&button_states[i].press_time)) {
@@ -462,7 +465,7 @@ init: // look for a sync pulse
       }
     }
 
-    for (i = 0; i < ARRAY_SIZE(channels); i++) {
+    for (i = 0; i < num_channels; i++) {
       struct input_event ev;
       int value;
       memset(&ev, 0, sizeof(ev));
@@ -535,5 +538,11 @@ init: // look for a sync pulse
   destroy_alsa(&state);
   ioctl(uinput_fd, UI_DEV_DESTROY);
   close(uinput_fd);
+
+  // Free config if dynamically allocated
+  if (channels != default_channels) {
+    free_config(channels);
+  }
+
   exit(0);
 }
