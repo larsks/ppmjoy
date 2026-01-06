@@ -215,8 +215,8 @@ int init_uinput(state_t *state) {
   memset(&uidev, 0, sizeof(uidev));
   snprintf(uidev.name, UINPUT_MAX_NAME_SIZE, "ppmjoy");
   uidev.id.bustype = BUS_USB;
-  uidev.id.vendor = 0x1234;
-  uidev.id.product = 0xfedc;
+  uidev.id.vendor = 0x1209;
+  uidev.id.product = 0x2640;
   uidev.id.version = 1;
   for (int i = 0; i < 6; i++) {
     uidev.absmax[i] = (2500 * state->params.rate) / 1000000;
