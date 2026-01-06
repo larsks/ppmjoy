@@ -67,6 +67,7 @@ static channel default_channels[] = {
 
 struct option options[] = {
     // clang-format off
+  {"help", 0, NULL, 'h'},
   {"device", 1, NULL, 'd'},
   {"config", 1, NULL, 'f'},
   {NULL, 0, NULL, 0},
@@ -384,6 +385,11 @@ int init_uinput(state_t *state) {
   return uinput_fd;
 }
 
+void show_usage(FILE *out) {
+  fprintf(out, "ppmjoy: usage: ppmjoy [--device|-d alsa_device] "
+               "[--config|-f ppmjoy_config]\n");
+}
+
 int main(int argc, char *argv[]) {
   int i;
   int c;
@@ -399,14 +405,22 @@ int main(int argc, char *argv[]) {
     config_path = "~/.config/ppmjoy.json";
   }
 
-  while (-1 != (c = getopt_long(argc, argv, "d:f:", options, NULL))) {
+  while (-1 != (c = getopt_long(argc, argv, "d:f:h", options, NULL))) {
     switch (c) {
+    case 'h':
+      show_usage(stdout);
+      exit(0);
+
     case 'd':
       alsa_device = strdup(optarg);
       break;
     case 'f':
       config_path = strdup(optarg);
       break;
+
+    case '?':
+      show_usage(stderr);
+      exit(2);
     }
   }
 
