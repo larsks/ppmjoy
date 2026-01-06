@@ -38,6 +38,10 @@ E.g. `-d hw:2`.
 configuration. This will default to the value of the `PPMJOY_CONFIG`
 environment variable, or if that is not set to `~/.config/ppmjoy.json`.
 
+- `--monitor|-m` -- live output of channel values.
+
+- `--verbose|-v` -- enable some verbose logging. May be specified multiple times for increased verbosity.
+
 ## Configuration
 
 The `ppmjoy` configuration file describes the relationship between PPM channels and input events. The configuration file is a JSON dictionary with a single top-level "channels" key, the value of which is a list of channel configurations, one per input channel. For example, the following example matches the [default configuration](#default-configuration), which maps PPM channels 1-4 onto input axes:
