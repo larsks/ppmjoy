@@ -287,11 +287,11 @@ static void parse_arguments(int argc, char *argv[]) {
 
   // Initialize with defaults from environment or hardcoded
   app_config.alsa_device = getenv("PPMJOY_ALSA_DEVICE");
-  if (!app_config.alsa_device)
+  if (!app_config.alsa_device || strlen(app_config.alsa_device) == 0)
     app_config.alsa_device = "default";
 
   app_config.config_path = getenv("PPMJOY_CONFIG");
-  if (!app_config.config_path)
+  if (!app_config.config_path || strlen(app_config.config_path) == 0)
     app_config.config_path = "~/.config/ppmjoy.json";
 
   app_config.verbose = 0;
