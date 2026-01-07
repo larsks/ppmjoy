@@ -12,6 +12,8 @@ TESTS = $(TEST_SRCS:.c=)
 
 TEST_EXTRA_OBJS=vendor/unity/src/unity.o
 
+COMPILE =	$(CC) $(LDFLAGS) -o $@ $^ $(LIBS)
+
 all: $(EXE)
 
 test: $(TESTS)
@@ -24,14 +26,14 @@ tests/test_config: tests/test_config.o
 tests/test_args: tests/test_args.o
 
 $(TESTS): $(filter-out main.o, $(OBJS)) $(TEST_EXTRA_OBJS)
-	$(CC) $(LDFLAGS) -o $@ $^ $(LIBS)
+	$(COMPILE)
 
 $(EXE): $(OBJS)
-	$(CC) $(OBJS) -o $@ $(LDFLAGS) $(LIBS)
+	$(COMPILE)
 
 clean:
 	rm -f $(OBJS) $(EXE)
-	rm -f $(TEST_OBJS) $(TESTS)
+	rm -f $(TEST_OBJS) $(TEST_EXTRA_OBJS) $(TESTS)
 
 realclean: clean
 	rm -f makefile.deps
