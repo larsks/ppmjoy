@@ -25,6 +25,9 @@
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
 #define BUTTON_RELEASE_TIME_MS 100
 
+#define PPMJOY_ID_VENDOR 0x1209
+#define PPMJOY_ID_PRODUCT 0x2640
+
 typedef struct {
   unsigned int period; // length of a full cycle in samples
   size_t sync_min;     // minimum length of sync pulse in samples
@@ -218,8 +221,8 @@ int init_uinput(state_t *state) {
   memset(&uidev, 0, sizeof(uidev));
   snprintf(uidev.name, UINPUT_MAX_NAME_SIZE, "ppmjoy");
   uidev.id.bustype = BUS_USB;
-  uidev.id.vendor = 0x1209;
-  uidev.id.product = 0x2640;
+  uidev.id.vendor = PPMJOY_ID_VENDOR;
+  uidev.id.product = PPMJOY_ID_PRODUCT;
   uidev.id.version = 1;
   for (int i = 0; i < 6; i++) {
     uidev.absmax[i] = (2500 * state->params.rate) / 1000000;
