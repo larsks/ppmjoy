@@ -1,3 +1,9 @@
 /ppmjoy
 makefile.deps
 /tests/test_config
+
+# Coverage artifacts
+/coverage/
+*.gcov
+*.gcda
+*.gcno
