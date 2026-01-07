@@ -53,7 +53,11 @@ PPM channels 1-4 onto input axes:
 ```toml
 [[channels]]
 type = "axis"
-code = "ABS_X"
+code = "ABS_RX"
+
+[[channels]]
+type = "axis"
+code = "ABS_RY"
 
 [[channels]]
 type = "axis"
@@ -61,11 +65,7 @@ code = "ABS_Y"
 
 [[channels]]
 type = "axis"
-code = "ABS_RX"
-
-[[channels]]
-type = "axis"
-code = "ABS_RY"
+code = "ABS_X"
 ```
 
 A channel configuration can be one of three different types, described in the follow sections.

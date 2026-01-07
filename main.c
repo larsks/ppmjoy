@@ -49,10 +49,10 @@ int num_channels = 0;
 
 static channel default_channels[] = {
     // clang-format off
-  {CTL_AXIS,  ABS_X},
-  {CTL_AXIS,  ABS_Y},
   {CTL_AXIS,  ABS_RX},
   {CTL_AXIS,  ABS_RY},
+  {CTL_AXIS,  ABS_Y},
+  {CTL_AXIS,  ABS_X},
     // clang-format on
 };
 
@@ -347,6 +347,9 @@ static void run_event_loop(device_context_t *devices) {
 
   // Wait for initial sync
   wait_for_sync(&devices->alsa_state);
+
+  if (app_config.verbose)
+    fprintf(stderr, "received initial sync\n");
 
   if (app_config.monitor)
     CLEAR();

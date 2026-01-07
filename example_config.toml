@@ -4,22 +4,22 @@
 # Channel 1: Roll (Aileron)
 [[channels]]
 type = "axis"
-code = "ABS_X"
+code = "ABS_RX"
 
 # Channel 2: Pitch (Elevator)
 [[channels]]
 type = "axis"
-code = "ABS_Y"
+code = "ABS_RY"
 
 # Channel 3: Thrust
 [[channels]]
 type = "axis"
-code = "ABS_RX"
+code = "ABS_Y"
 
 # Channel 4: Yaw (Rudder)
 [[channels]]
 type = "axis"
-code = "ABS_RY"
+code = "ABS_X"
 
 # Arm/disarm
 [[channels]]
