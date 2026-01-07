@@ -335,7 +335,7 @@ static void display_channel_event(int channel_idx, channel *ch, int value,
   if (channel_idx == 0)
     HOME();
 
-  printf("[%d] %s %d -> %d:%d\n", channel_idx, controller2str(ch->type), value,
+  printf("[%d] %7s %d -> %d:%d\n", channel_idx, controller2str(ch->type), value,
          ev->type, ev->code);
 }
 
@@ -366,8 +366,6 @@ static void run_event_loop(device_context_t *devices) {
       if (read_channel_pulse(&devices->alsa_state, &value) < 0) {
         // Sync lost, re-synchronize
         wait_for_sync(&devices->alsa_state);
-        if (app_config.monitor)
-          CLEAR();
         break; // restart channel loop after sync
       }
 
@@ -387,9 +385,6 @@ static void run_event_loop(device_context_t *devices) {
              "failed to write uinput event");
       }
     }
-
-    if (app_config.monitor)
-      CLEAR();
 
     // Validate frame end
     if (validate_frame_end(&devices->alsa_state) < 0) {
