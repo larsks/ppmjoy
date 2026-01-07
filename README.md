@@ -36,7 +36,7 @@ E.g. `-d hw:2`.
 
 - `--config/-f` -- specify the file from which to read the `ppmjoy`
 configuration. This will default to the value of the `PPMJOY_CONFIG`
-environment variable, or if that is not set to `~/.config/ppmjoy.json`.
+environment variable, or if that is not set to `~/.config/ppmjoy.toml`.
 
 - `--monitor|-m` -- live output of channel values.
 
@@ -44,29 +44,28 @@ environment variable, or if that is not set to `~/.config/ppmjoy.json`.
 
 ## Configuration
 
-The `ppmjoy` configuration file describes the relationship between PPM channels and input events. The configuration file is a JSON dictionary with a single top-level "channels" key, the value of which is a list of channel configurations, one per input channel. For example, the following example matches the [default configuration](#default-configuration), which maps PPM channels 1-4 onto input axes:
+The `ppmjoy` configuration file describes the relationship between PPM channels
+and input events. The configuration file is a TOML file with channel
+configurations specified as an array of tables. For example, the following
+example matches the [default configuration](#default-configuration), which maps
+PPM channels 1-4 onto input axes:
 
-```
-{
-  "channels": [
-    {
-      "type": "axis",
-      "code": "ABS_X"
-    },
-    {
-      "type": "axis",
-      "code": "ABS_Y"
-    },
-    {
-      "type": "axis",
-      "code": "ABS_RX"
-    },
-    {
-      "type": "axis",
-      "code": "ABS_RY"
-    }
-  ]
-}
+```toml
+[[channels]]
+type = "axis"
+code = "ABS_X"
+
+[[channels]]
+type = "axis"
+code = "ABS_Y"
+
+[[channels]]
+type = "axis"
+code = "ABS_RX"
+
+[[channels]]
+type = "axis"
+code = "ABS_RY"
 ```
 
 A channel configuration can be one of three different types, described in the follow sections.
@@ -79,13 +78,12 @@ An `axis` controls maps the channel value directly to the named axis.
 
 A `button` control maps the channel value to button press/release events. This is good for momentary switches on your transmitter. For example, I use the following configuration to map a momentary switch to event `BTN_3`, which I use to toggle the viewpoint in Liftoff:
 
-```
-{
-  "type": "button",
-  "code": "BTN_3",
-  "threshold": 250,
-  "comment": "viewpoint"
-}
+```toml
+# viewpoint
+[[channels]]
+type = "button"
+code = "BTN_3"
+threshold = 250
 ```
 
 When the channel values becomes greater than 250, this generates a button press event. When it falls below 250, this triggers a button release.
@@ -95,15 +93,14 @@ When the channel values becomes greater than 250, this generates a button press 
 
 A `multi` control maps the channel value to multiple buttons. As the value crosses defined thresholds, `ppmjoy` will generate button press and button release events for the corresponding button. For example, there is a three-position switch on my transmitter that I would like to use to control the flight mode in Liftoff. I use the following configuration:
 
-```
-{
-  "type": "multi",
-  "num_positions": 3,
-  "thresholds": [250, 350],
-  "codes": ["BTN_5", "BTN_6", "BTN_7"],
-  "hysteresis": 10,
-  "comment": "flight mode"
-}
+```toml
+# flight mode
+[[channels]]
+type = "multi"
+num_positions = 3
+thresholds = [250, 350]
+codes = ["BTN_5", "BTN_6", "BTN_7"]
+hysteresis = 10
 ```
 
 The values produced by the channel mapped to this button are approximately 188 in position, 288 in position 2, and 388 in position 3. I have set the thresholds slightly below those values in case there is any jitter on the channel. With the above configuration, moving the switch into position will generate button press and button release events for `BTN_5`. When moving the switch into the center position, it will generate press and release events for `BTN_6`, etc. This allows me to set up Liftoff with the following control mapping:
@@ -112,13 +109,13 @@ The values produced by the channel mapped to this button are approximately 188 i
 | ------------------- | -------- |
 | Toggle LEVEL mode   | Button5  |
 | Toggle ACRO mode    | Button6  |
-| Toggle Horizon mode | Button 7 |
+| Toggle Horizon mode | Button7  |
 
 A `multi` control can have up to 4 positions. In this example I'm configuring a multi-position switch, but you could just as easily use this technique to map a dial to up to 4 different buttons.
 
 ### Examples
 
-The file [example_config.json](example_config.json) has a complete example configuration.
+The file [example_config.toml](example_config.toml) has a complete example configuration.
 
 ### Default configuration
 
@@ -155,17 +152,20 @@ The program needs permission to read from the ALSA device, and to create [uinput
 
 This license for this project is in flux; see [this issue][contacted jason].
 
-This project makes use of [cJSON](https://github.com/DaveGamble/cJSON), which is licensed under the terms of the MIT license:
+This project makes use of [tomlc99](https://github.com/cktan/tomlc99), which is licensed under the terms of the MIT license:
 
 ```
-Copyright (c) 2009-2017 Dave Gamble and cJSON contributors
+MIT License
 
-Permission is hereby granted, free of charge, to any person obtaining a copy of
-this software and associated documentation files (the "Software"), to deal in
-the Software without restriction, including without limitation the rights to
-use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
-of the Software, and to permit persons to whom the Software is furnished to do
-so, subject to the following conditions:
+Copyright (c) CK Tan
+https://github.com/cktan/tomlc99
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
 
 The above copyright notice and this permission notice shall be included in all
 copies or substantial portions of the Software.

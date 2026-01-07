@@ -1,0 +1,54 @@
+# This is the configuration I use with Liftoff and my Turnigy 9XR Pro
+# transmitter. The transmitter is configured with channels in AETR order.
+
+# Channel 1: Roll (Aileron)
+[[channels]]
+type = "axis"
+code = "ABS_X"
+
+# Channel 2: Pitch (Elevator)
+[[channels]]
+type = "axis"
+code = "ABS_Y"
+
+# Channel 3: Thrust
+[[channels]]
+type = "axis"
+code = "ABS_RX"
+
+# Channel 4: Yaw (Rudder)
+[[channels]]
+type = "axis"
+code = "ABS_RY"
+
+# Arm/disarm
+[[channels]]
+type = "multi"
+num_positions = 2
+thresholds = [250]
+codes = ["BTN_1", "BTN_2"]
+hysteresis = 0
+
+# Toggle viewpoint
+[[channels]]
+type = "button"
+code = "BTN_3"
+threshold = 250
+
+# Flight mode
+# This maps a three-position switch to Toggle Level, Toggle Acro, and Toggle
+# Horizon
+[[channels]]
+type = "multi"
+num_positions = 3
+thresholds = [250, 350]
+codes = ["BTN_5", "BTN_6", "BTN_7"]
+hysteresis = 10
+
+# Currently unmapped in liftoff
+[[channels]]
+type = "multi"
+num_positions = 2
+thresholds = [250]
+codes = ["BTN_8", "BTN_9"]
+hysteresis = 10

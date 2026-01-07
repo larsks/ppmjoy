@@ -1,6 +1,6 @@
-[submodule "vendor/cJSON"]
-	path = vendor/cJSON
-	url = https://github.com/DaveGamble/cJSON.git
 [submodule "vendor/unity"]
 	path = vendor/unity
 	url = https://github.com/ThrowTheSwitch/Unity.git
+[submodule "vendor/tomlc99"]
+	path = vendor/tomlc99
+	url = https://github.com/cktan/tomlc99.git

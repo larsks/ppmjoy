@@ -1,8 +1,8 @@
 EXE = ppmjoy
-SRCS = main.c must.c config.c vendor/cJSON/cJSON.c event.c
+SRCS = main.c must.c config.c vendor/tomlc99/toml.c event.c
 OBJS = $(SRCS:.c=.o)
 
-CPPFLAGS=-I. -Ivendor/cJSON -Ivendor/unity/src
+CPPFLAGS=-I. -Ivendor/tomlc99 -Ivendor/unity/src
 CFLAGS=-Wall -g
 LIBS=-lasound
 
@@ -17,7 +17,7 @@ test: $(TESTS)
 		$$test || exit 1; \
 	done
 
-tests/test_config: tests/test_config.o config.o must.o vendor/unity/src/unity.o vendor/cJSON/cJSON.o
+tests/test_config: tests/test_config.o config.o must.o vendor/unity/src/unity.o vendor/tomlc99/toml.o
 
 $(EXE): $(OBJS)
 	$(CC) $(OBJS) -o $@ $(LDFLAGS) $(LIBS)

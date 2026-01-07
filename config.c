@@ -1,5 +1,5 @@
 #include "config.h"
-#include "cJSON.h"
+#include "toml.h"
 #include "must.h"
 #include <errno.h>
 #include <stdarg.h>
@@ -155,100 +155,71 @@ static char *expand_path(const char *path) {
   return expanded;
 }
 
-// Read entire file into malloc'd string
-// Returns NULL if file doesn't exist or can't be read
-static char *read_file(const char *path) {
-  FILE *f = fopen(path, "rb");
-  if (!f) {
-    return NULL; // Silent failure for missing config file
-  }
-
-  // Get file size
-  fseek(f, 0, SEEK_END);
-  long fsize = ftell(f);
-  fseek(f, 0, SEEK_SET);
-
-  // Allocate buffer
-  char *content = malloc(fsize + 1);
-  if (!content) {
-    fclose(f);
-    return NULL;
-  }
-
-  // Read file
-  size_t read_size = fread(content, 1, fsize, f);
-  fclose(f);
-
-  if (read_size != fsize) {
-    free(content);
-    return NULL;
-  }
-
-  content[fsize] = '\0';
-  return content;
-}
-
-// Parse an axis channel from JSON
+// Parse an axis channel from TOML
 // Returns 0 on success, -1 on error
-static int parse_axis_channel(cJSON *json, channel *out) {
+static int parse_axis_channel(toml_table_t *tbl, channel *out) {
   if (!out)
     return -1;
 
   memset(out, 0, sizeof(*out));
   out->type = CTL_AXIS;
 
-  cJSON *code_json = cJSON_GetObjectItem(json, "code");
-  if (!code_json || !cJSON_IsString(code_json)) {
+  toml_datum_t code_datum = toml_string_in(tbl, "code");
+  if (!code_datum.ok) {
     set_config_error("axis channel missing 'code' field");
     return -1;
   }
 
-  int code = lookup_code(code_json->valuestring, axis_codes);
+  int code = lookup_code(code_datum.u.s, axis_codes);
   if (code == -1) {
-    set_config_error("unknown axis code '%.100s'", code_json->valuestring);
+    set_config_error("unknown axis code '%.100s'", code_datum.u.s);
+    free(code_datum.u.s);
     return -1;
   }
 
+  free(code_datum.u.s);
   out->code = code;
   return 0;
 }
 
-// Parse a button channel from JSON
+// Parse a button channel from TOML
 // Returns 0 on success, -1 on error
-static int parse_button_channel(cJSON *json, channel *out) {
+static int parse_button_channel(toml_table_t *tbl, channel *out) {
   if (!out)
     return -1;
 
   memset(out, 0, sizeof(*out));
   out->type = CTL_BUTTON;
 
-  cJSON *code_json = cJSON_GetObjectItem(json, "code");
-  if (!code_json || !cJSON_IsString(code_json)) {
+  toml_datum_t code_datum = toml_string_in(tbl, "code");
+  if (!code_datum.ok) {
     set_config_error("button channel missing 'code' field");
     return -1;
   }
 
-  int code = lookup_code(code_json->valuestring, button_codes);
+  int code = lookup_code(code_datum.u.s, button_codes);
   if (code == -1) {
-    set_config_error("unknown button code '%.100s'", code_json->valuestring);
+    set_config_error("unknown button code '%.100s'", code_datum.u.s);
+    free(code_datum.u.s);
     return -1;
   }
 
+  free(code_datum.u.s);
   out->code = code;
 
-  cJSON *threshold_json = cJSON_GetObjectItem(json, "threshold");
-  if (!threshold_json || !cJSON_IsNumber(threshold_json)) {
+  toml_datum_t threshold_datum = toml_int_in(tbl, "threshold");
+  if (!threshold_datum.ok) {
     set_config_error("button channel missing 'threshold' field");
     return -1;
   }
 
-  out->threshold = threshold_json->valueint;
+  out->threshold = (int)threshold_datum.u.i;
   return 0;
 }
 
-// Parse a multi-position channel from JSON
+// Parse a multi-position channel from TOML
 // Returns 0 on success, -1 on error
-static int parse_multi_channel(cJSON *json, channel *out) {
+static int parse_multi_channel(toml_table_t *tbl, channel *out) {
   if (!out)
     return -1;
 
@@ -256,12 +227,12 @@ static int parse_multi_channel(cJSON *json, channel *out) {
   out->type = CTL_MULTI;
 
   // Parse num_positions
-  cJSON *num_pos_json = cJSON_GetObjectItem(json, "num_positions");
-  if (!num_pos_json || !cJSON_IsNumber(num_pos_json)) {
+  toml_datum_t num_pos_datum = toml_int_in(tbl, "num_positions");
+  if (!num_pos_datum.ok) {
     set_config_error("multi channel missing 'num_positions' field");
     return -1;
   }
-  out->num_positions = num_pos_json->valueint;
+  out->num_positions = (int)num_pos_datum.u.i;
 
   if (out->num_positions < 2 || out->num_positions > 4) {
     set_config_error("num_positions must be 2-4, got %d", out->num_positions);
@@ -269,13 +240,13 @@ static int parse_multi_channel(cJSON *json, channel *out) {
   }
 
   // Parse thresholds array
-  cJSON *thresholds_json = cJSON_GetObjectItem(json, "thresholds");
-  if (!thresholds_json || !cJSON_IsArray(thresholds_json)) {
+  toml_array_t *thresholds_arr = toml_array_in(tbl, "thresholds");
+  if (!thresholds_arr) {
     set_config_error("multi channel missing 'thresholds' array");
     return -1;
   }
 
-  int threshold_count = cJSON_GetArraySize(thresholds_json);
+  int threshold_count = toml_array_nelem(thresholds_arr);
   if (threshold_count != out->num_positions - 1) {
     set_config_error("expected %d thresholds for %d positions, got %d",
                      out->num_positions - 1, out->num_positions,
@@ -284,22 +255,22 @@ static int parse_multi_channel(cJSON *json, channel *out) {
   }
 
   for (int i = 0; i < threshold_count; i++) {
-    cJSON *item = cJSON_GetArrayItem(thresholds_json, i);
-    if (!cJSON_IsNumber(item)) {
+    toml_datum_t item = toml_int_at(thresholds_arr, i);
+    if (!item.ok) {
       set_config_error("threshold[%d] is not a number", i);
       return -1;
     }
-    out->thresholds[i] = item->valueint;
+    out->thresholds[i] = (int)item.u.i;
   }
 
   // Parse codes array
-  cJSON *codes_json = cJSON_GetObjectItem(json, "codes");
-  if (!codes_json || !cJSON_IsArray(codes_json)) {
+  toml_array_t *codes_arr = toml_array_in(tbl, "codes");
+  if (!codes_arr) {
     set_config_error("multi channel missing 'codes' array");
     return -1;
   }
 
-  int codes_count = cJSON_GetArraySize(codes_json);
+  int codes_count = toml_array_nelem(codes_arr);
   if (codes_count != out->num_positions) {
     set_config_error("expected %d codes for %d positions, got %d",
                      out->num_positions, out->num_positions, codes_count);
@@ -307,25 +278,27 @@ static int parse_multi_channel(cJSON *json, channel *out) {
   }
 
   for (int i = 0; i < codes_count; i++) {
-    cJSON *item = cJSON_GetArrayItem(codes_json, i);
-    if (!cJSON_IsString(item)) {
+    toml_datum_t item = toml_string_at(codes_arr, i);
+    if (!item.ok) {
       set_config_error("codes[%d] is not a string", i);
       return -1;
     }
 
-    int code = lookup_code(item->valuestring, button_codes);
+    int code = lookup_code(item.u.s, button_codes);
     if (code == -1) {
       set_config_error("unknown button code '%.100s' in codes[%d]",
-                       item->valuestring, i);
+                       item.u.s, i);
+      free(item.u.s);
       return -1;
     }
     out->codes[i] = code;
+    free(item.u.s);
   }
 
   // Parse optional hysteresis (default to 0)
-  cJSON *hysteresis_json = cJSON_GetObjectItem(json, "hysteresis");
-  if (hysteresis_json && cJSON_IsNumber(hysteresis_json)) {
-    out->hysteresis = hysteresis_json->valueint;
+  toml_datum_t hysteresis_datum = toml_int_in(tbl, "hysteresis");
+  if (hysteresis_datum.ok) {
+    out->hysteresis = (int)hysteresis_datum.u.i;
   } else {
     out->hysteresis = 0;
   }
@@ -347,41 +320,37 @@ channel *load_config(const char *config_path, int *num_channels) {
     return NULL;
   }
 
-  // Read file
-  char *json_str = read_file(expanded_path);
+  // Open file
+  FILE *fp = fopen(expanded_path, "r");
   free(expanded_path);
 
-  if (!json_str) {
+  if (!fp) {
     // File doesn't exist - silent fallback to defaults
     return NULL;
   }
 
-  // Parse JSON
-  cJSON *root = cJSON_Parse(json_str);
-  free(json_str);
+  // Parse TOML
+  char errbuf[200];
+  toml_table_t *root = toml_parse_file(fp, errbuf, sizeof(errbuf));
+  fclose(fp);
 
   if (!root) {
-    const char *error_ptr = cJSON_GetErrorPtr();
-    if (error_ptr) {
-      set_config_error("JSON parse error before: %.100s", error_ptr);
-    } else {
-      set_config_error("JSON parse error");
-    }
+    set_config_error("TOML parse error: %.100s", errbuf);
     return NULL;
   }
 
   // Extract channels array
-  cJSON *channels_json = cJSON_GetObjectItem(root, "channels");
-  if (!channels_json || !cJSON_IsArray(channels_json)) {
+  toml_array_t *channels_arr = toml_array_in(root, "channels");
+  if (!channels_arr) {
     set_config_error("'channels' field must be an array");
-    cJSON_Delete(root);
+    toml_free(root);
     return NULL;
   }
 
-  int count = cJSON_GetArraySize(channels_json);
+  int count = toml_array_nelem(channels_arr);
   if (count == 0) {
     set_config_error("'channels' array is empty");
-    cJSON_Delete(root);
+    toml_free(root);
     return NULL;
   }
 
@@ -389,61 +358,65 @@ channel *load_config(const char *config_path, int *num_channels) {
   channel *channels = calloc(count, sizeof(channel));
   if (!channels) {
     set_config_error("failed to allocate memory for channels");
-    cJSON_Delete(root);
+    toml_free(root);
     return NULL;
   }
 
   // Parse each channel
   for (int i = 0; i < count; i++) {
-    cJSON *ch_json = cJSON_GetArrayItem(channels_json, i);
-    if (!cJSON_IsObject(ch_json)) {
+    toml_table_t *ch_tbl = toml_table_at(channels_arr, i);
+    if (!ch_tbl) {
       set_config_error("channel[%d] is not an object", i);
       free(channels);
-      cJSON_Delete(root);
+      toml_free(root);
       return NULL;
     }
 
-    cJSON *type_json = cJSON_GetObjectItem(ch_json, "type");
-    if (!type_json || !cJSON_IsString(type_json)) {
+    toml_datum_t type_datum = toml_string_in(ch_tbl, "type");
+    if (!type_datum.ok) {
       set_config_error("channel[%d] missing 'type' field", i);
       free(channels);
-      cJSON_Delete(root);
+      toml_free(root);
       return NULL;
     }
 
-    const char *type = type_json->valuestring;
+    const char *type = type_datum.u.s;
 
     if (strcmp(type, "axis") == 0) {
-      if (parse_axis_channel(ch_json, &channels[i]) < 0) {
+      free(type_datum.u.s);
+      if (parse_axis_channel(ch_tbl, &channels[i]) < 0) {
         // Error already set by helper
         free(channels);
-        cJSON_Delete(root);
+        toml_free(root);
         return NULL;
       }
     } else if (strcmp(type, "button") == 0) {
-      if (parse_button_channel(ch_json, &channels[i]) < 0) {
+      free(type_datum.u.s);
+      if (parse_button_channel(ch_tbl, &channels[i]) < 0) {
         // Error already set by helper
         free(channels);
-        cJSON_Delete(root);
+        toml_free(root);
         return NULL;
       }
     } else if (strcmp(type, "multi") == 0) {
-      if (parse_multi_channel(ch_json, &channels[i]) < 0) {
+      free(type_datum.u.s);
+      if (parse_multi_channel(ch_tbl, &channels[i]) < 0) {
         // Error already set by helper
         free(channels);
-        cJSON_Delete(root);
+        toml_free(root);
         return NULL;
       }
     } else {
       set_config_error("unknown channel type '%.100s' at channel[%d]", type, i);
+      free(type_datum.u.s);
       free(channels);
-      cJSON_Delete(root);
+      toml_free(root);
       return NULL;
     }
   }
 
   *num_channels = count;
-  cJSON_Delete(root);
+  toml_free(root);
   return channels;
 }
 

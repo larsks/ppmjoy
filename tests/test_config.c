@@ -44,11 +44,11 @@ void test_button2str(void) {
 
 void test_load_valid_config(void) {
   char cfgFile[512];
-  snprintf(cfgFile, sizeof(cfgFile) - 1, "%s/config.json", workdir);
-  writeFile(cfgFile,
-            "{\"channels\":[{\"type\":\"axis\",\"code\":\"ABS_X\"},{\"type\":"
-            "\"axis\",\"code\":\"ABS_Y\"},{\"type\":\"axis\",\"code\":\"ABS_"
-            "RX\"},{\"type\":\"axis\",\"code\":\"ABS_RY\"}]}");
+  snprintf(cfgFile, sizeof(cfgFile) - 1, "%s/config.toml", workdir);
+  writeFile(cfgFile, "[[channels]]\ntype = \"axis\"\ncode = \"ABS_X\"\n\n"
+                     "[[channels]]\ntype = \"axis\"\ncode = \"ABS_Y\"\n\n"
+                     "[[channels]]\ntype = \"axis\"\ncode = \"ABS_RX\"\n\n"
+                     "[[channels]]\ntype = \"axis\"\ncode = \"ABS_RY\"\n");
 
   channel *channels;
   int num_channels;
@@ -71,14 +71,14 @@ void test_load_missing_config(void) {
   channel *channels;
   int num_channels;
 
-  channels = load_config("tests/data/does-not-exist", &num_channels);
+  channels = load_config("/does-not-exist", &num_channels);
   TEST_ASSERT_NULL(channels);
 }
 
 void test_missing_channels_field(void) {
   char path[256];
-  snprintf(path, sizeof(path), "%s/no_channels.json", workdir);
-  writeFile(path, "{\"foo\": \"bar\"}");
+  snprintf(path, sizeof(path), "%s/no_channels.toml", workdir);
+  writeFile(path, "foo = \"bar\"");
 
   channel *channels;
   int num_channels;
@@ -92,8 +92,8 @@ void test_missing_channels_field(void) {
 
 void test_channels_not_array(void) {
   char path[256];
-  snprintf(path, sizeof(path), "%s/channels_not_array.json", workdir);
-  writeFile(path, "{\"channels\": \"not-an-array\"}");
+  snprintf(path, sizeof(path), "%s/channels_not_array.toml", workdir);
+  writeFile(path, "channels = \"not-an-array\"");
 
   channel *channels;
   int num_channels;
@@ -107,8 +107,8 @@ void test_channels_not_array(void) {
 
 void test_empty_channels_array(void) {
   char path[256];
-  snprintf(path, sizeof(path), "%s/empty_channels.json", workdir);
-  writeFile(path, "{\"channels\": []}");
+  snprintf(path, sizeof(path), "%s/empty_channels.toml", workdir);
+  writeFile(path, "channels = []");
 
   channel *channels;
   int num_channels;
@@ -122,8 +122,8 @@ void test_empty_channels_array(void) {
 
 void test_channel_not_object(void) {
   char path[256];
-  snprintf(path, sizeof(path), "%s/channel_not_object.json", workdir);
-  writeFile(path, "{\"channels\": [\"not-an-object\"]}");
+  snprintf(path, sizeof(path), "%s/channel_not_object.toml", workdir);
+  writeFile(path, "channels = [\"not-an-object\"]");
 
   channel *channels;
   int num_channels;
@@ -137,8 +137,8 @@ void test_channel_not_object(void) {
 
 void test_channel_missing_type(void) {
   char path[256];
-  snprintf(path, sizeof(path), "%s/missing_type.json", workdir);
-  writeFile(path, "{\"channels\": [{\"code\": \"ABS_X\"}]}");
+  snprintf(path, sizeof(path), "%s/missing_type.toml", workdir);
+  writeFile(path, "[[channels]]\ncode = \"ABS_X\"");
 
   channel *channels;
   int num_channels;
@@ -152,8 +152,8 @@ void test_channel_missing_type(void) {
 
 void test_unknown_channel_type(void) {
   char path[256];
-  snprintf(path, sizeof(path), "%s/unknown_type.json", workdir);
-  writeFile(path, "{\"channels\": [{\"type\": \"invalid\"}]}");
+  snprintf(path, sizeof(path), "%s/unknown_type.toml", workdir);
+  writeFile(path, "[[channels]]\ntype = \"invalid\"");
 
   channel *channels;
   int num_channels;
@@ -167,8 +167,8 @@ void test_unknown_channel_type(void) {
 
 void test_axis_missing_code(void) {
   char path[256];
-  snprintf(path, sizeof(path), "%s/axis_missing_code.json", workdir);
-  writeFile(path, "{\"channels\": [{\"type\": \"axis\"}]}");
+  snprintf(path, sizeof(path), "%s/axis_missing_code.toml", workdir);
+  writeFile(path, "[[channels]]\ntype = \"axis\"");
 
   channel *channels;
   int num_channels;
@@ -182,10 +182,8 @@ void test_axis_missing_code(void) {
 
 void test_axis_invalid_code(void) {
   char path[256];
-  snprintf(path, sizeof(path), "%s/axis_invalid_code.json", workdir);
-  writeFile(
-      path,
-      "{\"channels\": [{\"type\": \"axis\", \"code\": \"INVALID_CODE\"}]}");
+  snprintf(path, sizeof(path), "%s/axis_invalid_code.toml", workdir);
+  writeFile(path, "[[channels]]\ntype = \"axis\"\ncode = \"INVALID_CODE\"");
 
   channel *channels;
   int num_channels;
@@ -200,9 +198,8 @@ void test_axis_invalid_code(void) {
 
 void test_button_missing_code(void) {
   char path[256];
-  snprintf(path, sizeof(path), "%s/button_missing_code.json", workdir);
-  writeFile(path,
-            "{\"channels\": [{\"type\": \"button\", \"threshold\": 512}]}");
+  snprintf(path, sizeof(path), "%s/button_missing_code.toml", workdir);
+  writeFile(path, "[[channels]]\ntype = \"button\"\nthreshold = 512");
 
   channel *channels;
   int num_channels;
@@ -216,10 +213,10 @@ void test_button_missing_code(void) {
 
 void test_button_invalid_code(void) {
   char path[256];
-  snprintf(path, sizeof(path), "%s/button_invalid_code.json", workdir);
-  writeFile(path,
-            "{\"channels\": [{\"type\": \"button\", \"code\": \"INVALID\", "
-            "\"threshold\": 512}]}");
+  snprintf(path, sizeof(path), "%s/button_invalid_code.toml", workdir);
+  writeFile(
+      path,
+      "[[channels]]\ntype = \"button\"\ncode = \"INVALID\"\nthreshold = 512");
 
   channel *channels;
   int num_channels;
@@ -234,9 +231,8 @@ void test_button_invalid_code(void) {
 
 void test_button_missing_threshold(void) {
   char path[256];
-  snprintf(path, sizeof(path), "%s/button_missing_threshold.json", workdir);
-  writeFile(path,
-            "{\"channels\": [{\"type\": \"button\", \"code\": \"BTN_1\"}]}");
+  snprintf(path, sizeof(path), "%s/button_missing_threshold.toml", workdir);
+  writeFile(path, "[[channels]]\ntype = \"button\"\ncode = \"BTN_1\"");
 
   channel *channels;
   int num_channels;
@@ -250,8 +246,8 @@ void test_button_missing_threshold(void) {
 
 void test_multi_missing_num_positions(void) {
   char path[256];
-  snprintf(path, sizeof(path), "%s/multi_missing_positions.json", workdir);
-  writeFile(path, "{\"channels\": [{\"type\": \"multi\"}]}");
+  snprintf(path, sizeof(path), "%s/multi_missing_positions.toml", workdir);
+  writeFile(path, "[[channels]]\ntype = \"multi\"");
 
   channel *channels;
   int num_channels;
@@ -265,9 +261,8 @@ void test_multi_missing_num_positions(void) {
 
 void test_multi_invalid_num_positions(void) {
   char path[256];
-  snprintf(path, sizeof(path), "%s/multi_invalid_positions.json", workdir);
-  writeFile(path,
-            "{\"channels\": [{\"type\": \"multi\", \"num_positions\": 5}]}");
+  snprintf(path, sizeof(path), "%s/multi_invalid_positions.toml", workdir);
+  writeFile(path, "[[channels]]\ntype = \"multi\"\nnum_positions = 5");
 
   channel *channels;
   int num_channels;
@@ -282,9 +277,8 @@ void test_multi_invalid_num_positions(void) {
 
 void test_multi_missing_thresholds(void) {
   char path[256];
-  snprintf(path, sizeof(path), "%s/multi_missing_thresholds.json", workdir);
-  writeFile(path,
-            "{\"channels\": [{\"type\": \"multi\", \"num_positions\": 2}]}");
+  snprintf(path, sizeof(path), "%s/multi_missing_thresholds.toml", workdir);
+  writeFile(path, "[[channels]]\ntype = \"multi\"\nnum_positions = 2");
 
   channel *channels;
   int num_channels;
@@ -298,9 +292,9 @@ void test_multi_missing_thresholds(void) {
 
 void test_multi_wrong_threshold_count(void) {
   char path[256];
-  snprintf(path, sizeof(path), "%s/multi_wrong_threshold_count.json", workdir);
-  writeFile(path, "{\"channels\": [{\"type\": \"multi\", \"num_positions\": 3, "
-                  "\"thresholds\": [512]}]}");
+  snprintf(path, sizeof(path), "%s/multi_wrong_threshold_count.toml", workdir);
+  writeFile(path, "[[channels]]\ntype = \"multi\"\nnum_positions = 3\n"
+                  "thresholds = [512]");
 
   channel *channels;
   int num_channels;
@@ -315,9 +309,9 @@ void test_multi_wrong_threshold_count(void) {
 
 void test_multi_missing_codes(void) {
   char path[256];
-  snprintf(path, sizeof(path), "%s/multi_missing_codes.json", workdir);
-  writeFile(path, "{\"channels\": [{\"type\": \"multi\", \"num_positions\": 2, "
-                  "\"thresholds\": [512]}]}");
+  snprintf(path, sizeof(path), "%s/multi_missing_codes.toml", workdir);
+  writeFile(path, "[[channels]]\ntype = \"multi\"\nnum_positions = 2\n"
+                  "thresholds = [512]");
 
   channel *channels;
   int num_channels;
@@ -331,9 +325,9 @@ void test_multi_missing_codes(void) {
 
 void test_multi_wrong_codes_count(void) {
   char path[256];
-  snprintf(path, sizeof(path), "%s/multi_wrong_codes_count.json", workdir);
-  writeFile(path, "{\"channels\": [{\"type\": \"multi\", \"num_positions\": 2, "
-                  "\"thresholds\": [512], \"codes\": [\"BTN_1\"]}]}");
+  snprintf(path, sizeof(path), "%s/multi_wrong_codes_count.toml", workdir);
+  writeFile(path, "[[channels]]\ntype = \"multi\"\nnum_positions = 2\n"
+                  "thresholds = [512]\ncodes = [\"BTN_1\"]");
 
   channel *channels;
   int num_channels;
@@ -348,10 +342,9 @@ void test_multi_wrong_codes_count(void) {
 
 void test_multi_invalid_code(void) {
   char path[256];
-  snprintf(path, sizeof(path), "%s/multi_invalid_code.json", workdir);
-  writeFile(path,
-            "{\"channels\": [{\"type\": \"multi\", \"num_positions\": 2, "
-            "\"thresholds\": [512], \"codes\": [\"BTN_1\", \"INVALID\"]}]}");
+  snprintf(path, sizeof(path), "%s/multi_invalid_code.toml", workdir);
+  writeFile(path, "[[channels]]\ntype = \"multi\"\nnum_positions = 2\n"
+                  "thresholds = [512]\ncodes = [\"BTN_1\", \"INVALID\"]");
 
   channel *channels;
   int num_channels;
@@ -366,9 +359,9 @@ void test_multi_invalid_code(void) {
 
 void test_button_valid_config(void) {
   char path[256];
-  snprintf(path, sizeof(path), "%s/button_valid.json", workdir);
-  writeFile(path, "{\"channels\": [{\"type\": \"button\", \"code\": \"BTN_1\", "
-                  "\"threshold\": 512}]}");
+  snprintf(path, sizeof(path), "%s/button_valid.toml", workdir);
+  writeFile(path, "[[channels]]\ntype = \"button\"\ncode = \"BTN_1\"\n"
+                  "threshold = 512");
 
   channel *channels;
   int num_channels;
@@ -385,10 +378,9 @@ void test_button_valid_config(void) {
 
 void test_multi_valid_config(void) {
   char path[256];
-  snprintf(path, sizeof(path), "%s/multi_valid.json", workdir);
-  writeFile(path,
-            "{\"channels\": [{\"type\": \"multi\", \"num_positions\": 2, "
-            "\"thresholds\": [512], \"codes\": [\"BTN_1\", \"BTN_2\"]}]}");
+  snprintf(path, sizeof(path), "%s/multi_valid.toml", workdir);
+  writeFile(path, "[[channels]]\ntype = \"multi\"\nnum_positions = 2\n"
+                  "thresholds = [512]\ncodes = [\"BTN_1\", \"BTN_2\"]");
 
   channel *channels;
   int num_channels;
@@ -408,11 +400,10 @@ void test_multi_valid_config(void) {
 
 void test_multi_with_hysteresis(void) {
   char path[256];
-  snprintf(path, sizeof(path), "%s/multi_hysteresis.json", workdir);
-  writeFile(path, "{\"channels\": [{\"type\": \"multi\", \"num_positions\": 2, "
-                  "\"thresholds\": [512], \"codes\": [\"BTN_1\", \"BTN_2\"], "
-                  "\"hysteresis\": "
-                  "10}]}");
+  snprintf(path, sizeof(path), "%s/multi_hysteresis.toml", workdir);
+  writeFile(path, "[[channels]]\ntype = \"multi\"\nnum_positions = 2\n"
+                  "thresholds = [512]\ncodes = [\"BTN_1\", \"BTN_2\"]\n"
+                  "hysteresis = 10");
 
   channel *channels;
   int num_channels;
@@ -428,15 +419,13 @@ void test_multi_with_hysteresis(void) {
 
 void test_mixed_channel_types(void) {
   char path[256];
-  snprintf(path, sizeof(path), "%s/mixed_types.json", workdir);
+  snprintf(path, sizeof(path), "%s/mixed_types.toml", workdir);
   writeFile(
       path,
-      "{\"channels\": ["
-      "{\"type\": \"axis\", \"code\": \"ABS_X\"}, "
-      "{\"type\": \"button\", \"code\": \"BTN_1\", \"threshold\": 512}, "
-      "{\"type\": \"multi\", \"num_positions\": 2, \"thresholds\": [512], "
-      "\"codes\": [\"BTN_2\", \"BTN_3\"]}"
-      "]}");
+      "[[channels]]\ntype = \"axis\"\ncode = \"ABS_X\"\n\n"
+      "[[channels]]\ntype = \"button\"\ncode = \"BTN_1\"\nthreshold = 512\n\n"
+      "[[channels]]\ntype = \"multi\"\nnum_positions = 2\nthresholds = [512]\n"
+      "codes = [\"BTN_2\", \"BTN_3\"]");
 
   channel *channels;
   int num_channels;
