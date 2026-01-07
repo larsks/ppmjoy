@@ -13,6 +13,7 @@
 #include <getopt.h>
 #include <unistd.h>
 
+#include "args.h"
 #include "config.h"
 #include "event.h"
 #include "log.h"
@@ -39,13 +40,6 @@ typedef struct {
   int uinput_fd;
 } device_context_t;
 
-typedef struct {
-  char *alsa_device;
-  char *config_path;
-  int verbose;
-  int monitor;
-} app_config_t;
-
 channel *channels = NULL;
 int num_channels = 0;
 
@@ -57,18 +51,6 @@ static channel default_channels[] = {
   {CTL_AXIS,  ABS_X},
     // clang-format on
 };
-
-struct option options[] = {
-    // clang-format off
-  {"help", 0, NULL, 'h'},
-  {"device", 1, NULL, 'd'},
-  {"config", 1, NULL, 'f'},
-  {"verbose", 0, NULL, 'v'},
-  {"monitor", 0, NULL, 'm'},
-  {NULL, 0, NULL, 0},
-    // clang-format on
-};
-
 app_config_t app_config;
 
 void destroy_alsa(state_t *state) {
@@ -256,14 +238,6 @@ int init_uinput(state_t *state) {
   return uinput_fd;
 }
 
-void show_usage(FILE *out) {
-  fprintf(out, "ppmjoy: usage: ppmjoy [--device|-d alsa_device]"
-               " [--config|-f ppmjoy_config]"
-               " [--monitor|-m]"
-               " [--verbose|-v]"
-               "\n");
-}
-
 const char *controller2str(int type) {
   char *name = "unknown";
 
@@ -280,46 +254,6 @@ const char *controller2str(int type) {
   }
 
   return name;
-}
-
-static void parse_arguments(int argc, char *argv[]) {
-  int c;
-
-  // Initialize with defaults from environment or hardcoded
-  app_config.alsa_device = getenv("PPMJOY_ALSA_DEVICE");
-  if (!app_config.alsa_device || strlen(app_config.alsa_device) == 0)
-    app_config.alsa_device = "default";
-
-  app_config.config_path = getenv("PPMJOY_CONFIG");
-  if (!app_config.config_path || strlen(app_config.config_path) == 0)
-    app_config.config_path = "~/.config/ppmjoy.json";
-
-  app_config.verbose = 0;
-  app_config.monitor = 0;
-
-  while (-1 != (c = getopt_long(argc, argv, "d:f:hvm", options, NULL))) {
-    switch (c) {
-    case 'h':
-      show_usage(stdout);
-      exit(0);
-    case 'd':
-      app_config.alsa_device = strdup(optarg);
-      break;
-    case 'f':
-      app_config.config_path = strdup(optarg);
-      break;
-    case 'v':
-      app_config.verbose++;
-      set_log_level(MIN(app_config.verbose + 1, LOG_DEBUG));
-      break;
-    case 'm':
-      app_config.monitor = 1;
-      break;
-    case '?':
-      show_usage(stderr);
-      exit(2);
-    }
-  }
 }
 
 static void init_channel_state(int num_channels, int last_position[],
@@ -439,7 +373,20 @@ int main(int argc, char *argv[]) {
   set_log_level(LOG_WARNING);
 
   // Parse arguments
-  parse_arguments(argc, argv);
+  args_result_t parse_result =
+      parse_arguments(argc, argv, &app_config, show_usage);
+  switch (parse_result) {
+  case ARGS_HELP_REQUESTED:
+    exit(0);
+  case ARGS_ERROR:
+    exit(2);
+  default:
+    break;
+  }
+
+  if (app_config.verbose > 0) {
+    set_log_level(MIN(app_config.verbose + 1, LOG_DEBUG));
+  }
 
   // Load configuration
   logmsg(LOG_INFO, "loading configuration from %s", app_config.config_path);

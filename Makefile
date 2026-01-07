@@ -1,5 +1,5 @@
 EXE = ppmjoy
-SRCS = main.c must.c config.c vendor/tomlc99/toml.c event.c log.c
+SRCS = main.c must.c config.c vendor/tomlc99/toml.c event.c log.c args.c
 OBJS = $(SRCS:.c=.o)
 
 CPPFLAGS=-I. -Ivendor/tomlc99 -Ivendor/unity/src -Ivendor/termcolor-c/include
@@ -10,6 +10,8 @@ TEST_SRCS = $(wildcard tests/test_*.c)
 TEST_OBJS = $(TEST_SRCS:.c=.o)
 TESTS = $(TEST_SRCS:.c=)
 
+TEST_EXTRA_OBJS=vendor/unity/src/unity.o
+
 all: $(EXE)
 
 test: $(TESTS)
@@ -17,7 +19,12 @@ test: $(TESTS)
 		$$test || exit 1; \
 	done
 
-tests/test_config: tests/test_config.o config.o must.o vendor/unity/src/unity.o vendor/tomlc99/toml.o
+tests/test_config: tests/test_config.o
+
+tests/test_args: tests/test_args.o
+
+$(TESTS): $(filter-out main.o, $(OBJS)) $(TEST_EXTRA_OBJS)
+	$(CC) $(LDFLAGS) -o $@ $^ $(LIBS)
 
 $(EXE): $(OBJS)
 	$(CC) $(OBJS) -o $@ $(LDFLAGS) $(LIBS)
