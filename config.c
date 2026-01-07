@@ -14,7 +14,7 @@ typedef struct {
 } code_map_t;
 
 // Axis codes from linux/input.h
-const code_map_t axis_codes[] = {
+static const code_map_t axis_codes[] = {
     {"ABS_X", ABS_X},
     {"ABS_Y", ABS_Y},
     {"ABS_Z", ABS_Z},
@@ -38,7 +38,7 @@ const code_map_t axis_codes[] = {
 };
 
 // Button codes from linux/input.h
-const code_map_t button_codes[] = {
+static const code_map_t button_codes[] = {
     {"BTN_0", BTN_0},
     {"BTN_1", BTN_1},
     {"BTN_2", BTN_2},

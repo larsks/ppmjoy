@@ -66,10 +66,19 @@ void test_load_valid_config(void) {
   TEST_ASSERT_EQUAL_INT(ABS_RY, channels[3].code);
 }
 
+void test_load_missing_config(void) {
+  channel *channels;
+  int num_channels;
+
+  channels = load_config("tests/data/does-not-exist", &num_channels);
+  TEST_ASSERT_NULL(channels);
+}
+
 int main(void) {
   UNITY_BEGIN();
   RUN_TEST(test_axis2str);
   RUN_TEST(test_button2str);
   RUN_TEST(test_load_valid_config);
+  RUN_TEST(test_load_missing_config);
   return UNITY_END();
 }
