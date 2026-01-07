@@ -2,11 +2,38 @@
 #include "cJSON.h"
 #include "must.h"
 #include <errno.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <wordexp.h>
+
+// Global error context for config loading
+static struct {
+  char message[256];
+  int has_error;
+} config_error = {0};
+
+// Clear error state
+static void clear_config_error(void) {
+  config_error.has_error = 0;
+  config_error.message[0] = '\0';
+}
+
+// Set error with printf-style formatting
+static void set_config_error(const char *format, ...) {
+  va_list args;
+  va_start(args, format);
+  vsnprintf(config_error.message, sizeof(config_error.message), format, args);
+  va_end(args);
+  config_error.has_error = 1;
+}
+
+// Public function to get last error
+const char *load_config_error(void) {
+  return config_error.has_error ? config_error.message : NULL;
+}
 
 typedef struct {
   const char *name;
@@ -162,144 +189,154 @@ static char *read_file(const char *path) {
 }
 
 // Parse an axis channel from JSON
-static channel parse_axis_channel(cJSON *json) {
-  channel ch;
-  memset(&ch, 0, sizeof(ch));
-  ch.type = CTL_AXIS;
+// Returns 0 on success, -1 on error
+static int parse_axis_channel(cJSON *json, channel *out) {
+  if (!out)
+    return -1;
+
+  memset(out, 0, sizeof(*out));
+  out->type = CTL_AXIS;
 
   cJSON *code_json = cJSON_GetObjectItem(json, "code");
   if (!code_json || !cJSON_IsString(code_json)) {
-    fprintf(stderr, "error: axis channel missing 'code' field\n");
-    exit(1);
+    set_config_error("axis channel missing 'code' field");
+    return -1;
   }
 
   int code = lookup_code(code_json->valuestring, axis_codes);
   if (code == -1) {
-    fprintf(stderr, "error: unknown axis code '%s'\n", code_json->valuestring);
-    exit(1);
+    set_config_error("unknown axis code '%.100s'", code_json->valuestring);
+    return -1;
   }
 
-  ch.code = code;
-  return ch;
+  out->code = code;
+  return 0;
 }
 
 // Parse a button channel from JSON
-static channel parse_button_channel(cJSON *json) {
-  channel ch;
-  memset(&ch, 0, sizeof(ch));
-  ch.type = CTL_BUTTON;
+// Returns 0 on success, -1 on error
+static int parse_button_channel(cJSON *json, channel *out) {
+  if (!out)
+    return -1;
+
+  memset(out, 0, sizeof(*out));
+  out->type = CTL_BUTTON;
 
   cJSON *code_json = cJSON_GetObjectItem(json, "code");
   if (!code_json || !cJSON_IsString(code_json)) {
-    fprintf(stderr, "error: button channel missing 'code' field\n");
-    exit(1);
+    set_config_error("button channel missing 'code' field");
+    return -1;
   }
 
   int code = lookup_code(code_json->valuestring, button_codes);
   if (code == -1) {
-    fprintf(stderr, "error: unknown button code '%s'\n",
-            code_json->valuestring);
-    exit(1);
+    set_config_error("unknown button code '%.100s'", code_json->valuestring);
+    return -1;
   }
 
-  ch.code = code;
+  out->code = code;
 
   cJSON *threshold_json = cJSON_GetObjectItem(json, "threshold");
   if (!threshold_json || !cJSON_IsNumber(threshold_json)) {
-    fprintf(stderr, "error: button channel missing 'threshold' field\n");
-    exit(1);
+    set_config_error("button channel missing 'threshold' field");
+    return -1;
   }
 
-  ch.threshold = threshold_json->valueint;
-  return ch;
+  out->threshold = threshold_json->valueint;
+  return 0;
 }
 
 // Parse a multi-position channel from JSON
-static channel parse_multi_channel(cJSON *json) {
-  channel ch;
-  memset(&ch, 0, sizeof(ch));
-  ch.type = CTL_MULTI;
+// Returns 0 on success, -1 on error
+static int parse_multi_channel(cJSON *json, channel *out) {
+  if (!out)
+    return -1;
+
+  memset(out, 0, sizeof(*out));
+  out->type = CTL_MULTI;
 
   // Parse num_positions
   cJSON *num_pos_json = cJSON_GetObjectItem(json, "num_positions");
   if (!num_pos_json || !cJSON_IsNumber(num_pos_json)) {
-    fprintf(stderr, "error: multi channel missing 'num_positions' field\n");
-    exit(1);
+    set_config_error("multi channel missing 'num_positions' field");
+    return -1;
   }
-  ch.num_positions = num_pos_json->valueint;
+  out->num_positions = num_pos_json->valueint;
 
-  if (ch.num_positions < 2 || ch.num_positions > 4) {
-    fprintf(stderr, "error: num_positions must be 2-4, got %d\n",
-            ch.num_positions);
-    exit(1);
+  if (out->num_positions < 2 || out->num_positions > 4) {
+    set_config_error("num_positions must be 2-4, got %d", out->num_positions);
+    return -1;
   }
 
   // Parse thresholds array
   cJSON *thresholds_json = cJSON_GetObjectItem(json, "thresholds");
   if (!thresholds_json || !cJSON_IsArray(thresholds_json)) {
-    fprintf(stderr, "error: multi channel missing 'thresholds' array\n");
-    exit(1);
+    set_config_error("multi channel missing 'thresholds' array");
+    return -1;
   }
 
   int threshold_count = cJSON_GetArraySize(thresholds_json);
-  if (threshold_count != ch.num_positions - 1) {
-    fprintf(stderr, "error: expected %d thresholds for %d positions, got %d\n",
-            ch.num_positions - 1, ch.num_positions, threshold_count);
-    exit(1);
+  if (threshold_count != out->num_positions - 1) {
+    set_config_error("expected %d thresholds for %d positions, got %d",
+                     out->num_positions - 1, out->num_positions,
+                     threshold_count);
+    return -1;
   }
 
   for (int i = 0; i < threshold_count; i++) {
     cJSON *item = cJSON_GetArrayItem(thresholds_json, i);
     if (!cJSON_IsNumber(item)) {
-      fprintf(stderr, "error: threshold[%d] is not a number\n", i);
-      exit(1);
+      set_config_error("threshold[%d] is not a number", i);
+      return -1;
     }
-    ch.thresholds[i] = item->valueint;
+    out->thresholds[i] = item->valueint;
   }
 
   // Parse codes array
   cJSON *codes_json = cJSON_GetObjectItem(json, "codes");
   if (!codes_json || !cJSON_IsArray(codes_json)) {
-    fprintf(stderr, "error: multi channel missing 'codes' array\n");
-    exit(1);
+    set_config_error("multi channel missing 'codes' array");
+    return -1;
   }
 
   int codes_count = cJSON_GetArraySize(codes_json);
-  if (codes_count != ch.num_positions) {
-    fprintf(stderr, "error: expected %d codes for %d positions, got %d\n",
-            ch.num_positions, ch.num_positions, codes_count);
-    exit(1);
+  if (codes_count != out->num_positions) {
+    set_config_error("expected %d codes for %d positions, got %d",
+                     out->num_positions, out->num_positions, codes_count);
+    return -1;
   }
 
   for (int i = 0; i < codes_count; i++) {
     cJSON *item = cJSON_GetArrayItem(codes_json, i);
     if (!cJSON_IsString(item)) {
-      fprintf(stderr, "error: codes[%d] is not a string\n", i);
-      exit(1);
+      set_config_error("codes[%d] is not a string", i);
+      return -1;
     }
 
     int code = lookup_code(item->valuestring, button_codes);
     if (code == -1) {
-      fprintf(stderr, "error: unknown button code '%s' in codes[%d]\n",
-              item->valuestring, i);
-      exit(1);
+      set_config_error("unknown button code '%.100s' in codes[%d]",
+                       item->valuestring, i);
+      return -1;
     }
-    ch.codes[i] = code;
+    out->codes[i] = code;
   }
 
   // Parse optional hysteresis (default to 0)
   cJSON *hysteresis_json = cJSON_GetObjectItem(json, "hysteresis");
   if (hysteresis_json && cJSON_IsNumber(hysteresis_json)) {
-    ch.hysteresis = hysteresis_json->valueint;
+    out->hysteresis = hysteresis_json->valueint;
   } else {
-    ch.hysteresis = 0;
+    out->hysteresis = 0;
   }
 
-  return ch;
+  return 0;
 }
 
 // Main configuration loading function
 channel *load_config(const char *config_path, int *num_channels) {
+  clear_config_error();
+
   if (!config_path || !num_channels) {
     return NULL;
   }
@@ -326,68 +363,82 @@ channel *load_config(const char *config_path, int *num_channels) {
   if (!root) {
     const char *error_ptr = cJSON_GetErrorPtr();
     if (error_ptr) {
-      fprintf(stderr, "JSON parse error before: %s\n", error_ptr);
+      set_config_error("JSON parse error before: %.100s", error_ptr);
     } else {
-      fprintf(stderr, "JSON parse error\n");
+      set_config_error("JSON parse error");
     }
-    exit(1);
+    return NULL;
   }
 
   // Extract channels array
   cJSON *channels_json = cJSON_GetObjectItem(root, "channels");
   if (!channels_json || !cJSON_IsArray(channels_json)) {
-    fprintf(stderr, "error: 'channels' field must be an array\n");
+    set_config_error("'channels' field must be an array");
     cJSON_Delete(root);
-    exit(1);
+    return NULL;
   }
 
   int count = cJSON_GetArraySize(channels_json);
   if (count == 0) {
-    fprintf(stderr, "error: 'channels' array is empty\n");
+    set_config_error("'channels' array is empty");
     cJSON_Delete(root);
-    exit(1);
+    return NULL;
   }
 
   // Allocate channels array
   channel *channels = calloc(count, sizeof(channel));
   if (!channels) {
-    fprintf(stderr, "error: failed to allocate memory for channels\n");
+    set_config_error("failed to allocate memory for channels");
     cJSON_Delete(root);
-    exit(1);
+    return NULL;
   }
 
   // Parse each channel
   for (int i = 0; i < count; i++) {
     cJSON *ch_json = cJSON_GetArrayItem(channels_json, i);
     if (!cJSON_IsObject(ch_json)) {
-      fprintf(stderr, "error: channel[%d] is not an object\n", i);
+      set_config_error("channel[%d] is not an object", i);
       free(channels);
       cJSON_Delete(root);
-      exit(1);
+      return NULL;
     }
 
     cJSON *type_json = cJSON_GetObjectItem(ch_json, "type");
     if (!type_json || !cJSON_IsString(type_json)) {
-      fprintf(stderr, "error: channel[%d] missing 'type' field\n", i);
+      set_config_error("channel[%d] missing 'type' field", i);
       free(channels);
       cJSON_Delete(root);
-      exit(1);
+      return NULL;
     }
 
     const char *type = type_json->valuestring;
 
     if (strcmp(type, "axis") == 0) {
-      channels[i] = parse_axis_channel(ch_json);
+      if (parse_axis_channel(ch_json, &channels[i]) < 0) {
+        // Error already set by helper
+        free(channels);
+        cJSON_Delete(root);
+        return NULL;
+      }
     } else if (strcmp(type, "button") == 0) {
-      channels[i] = parse_button_channel(ch_json);
+      if (parse_button_channel(ch_json, &channels[i]) < 0) {
+        // Error already set by helper
+        free(channels);
+        cJSON_Delete(root);
+        return NULL;
+      }
     } else if (strcmp(type, "multi") == 0) {
-      channels[i] = parse_multi_channel(ch_json);
+      if (parse_multi_channel(ch_json, &channels[i]) < 0) {
+        // Error already set by helper
+        free(channels);
+        cJSON_Delete(root);
+        return NULL;
+      }
     } else {
-      fprintf(stderr, "error: unknown channel type '%s' at channel[%d]\n", type,
-              i);
+      set_config_error("unknown channel type '%.100s' at channel[%d]", type, i);
       free(channels);
       cJSON_Delete(root);
-      exit(1);
+      return NULL;
     }
   }
 

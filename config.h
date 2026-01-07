@@ -24,7 +24,13 @@ typedef struct {
 // Main configuration loading function
 // Returns: pointer to dynamically allocated channel array, or NULL on error
 // Sets *num_channels to the number of channels loaded
+// Note: Not thread-safe due to global error state
 channel *load_config(const char *config_path, int *num_channels);
+
+// Get the last error message from load_config
+// Returns: NULL if no error, or error message string
+// Note: The returned string is valid until the next call to load_config
+const char *load_config_error(void);
 
 // convert an axis code to a symbolic name
 const char *axis2str(const int code);

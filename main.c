@@ -419,9 +419,18 @@ int main(int argc, char *argv[]) {
     fprintf(stderr, "loading configuration from %s\n", app_config.config_path);
   channels = load_config(app_config.config_path, &num_channels);
   if (!channels) {
-    fprintf(stderr, "using default channel configuration\n");
-    channels = default_channels;
-    num_channels = ARRAY_SIZE(default_channels);
+    const char *error = load_config_error();
+    fprintf(stderr, "error: failed to load configuration: %s\n", error);
+
+    if (error) {
+      // Hard error - config exists but is invalid
+      exit(1);
+    } else {
+      // Soft error - config file doesn't exist, use defaults
+      fprintf(stderr, "       using default channel configuration\n");
+      channels = default_channels;
+      num_channels = ARRAY_SIZE(default_channels);
+    }
   }
 
   // Initialize devices

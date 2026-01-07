@@ -1,6 +1,7 @@
 #include <linux/input.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "config.h"
 #include "must.h"
@@ -74,11 +75,420 @@ void test_load_missing_config(void) {
   TEST_ASSERT_NULL(channels);
 }
 
+void test_missing_channels_field(void) {
+  char path[256];
+  snprintf(path, sizeof(path), "%s/no_channels.json", workdir);
+  writeFile(path, "{\"foo\": \"bar\"}");
+
+  channel *channels;
+  int num_channels;
+
+  channels = load_config(path, &num_channels);
+  TEST_ASSERT_NULL(channels);
+  const char *error = load_config_error();
+  TEST_ASSERT_NOT_NULL(error);
+  TEST_ASSERT_TRUE(strstr(error, "channels") != NULL);
+}
+
+void test_channels_not_array(void) {
+  char path[256];
+  snprintf(path, sizeof(path), "%s/channels_not_array.json", workdir);
+  writeFile(path, "{\"channels\": \"not-an-array\"}");
+
+  channel *channels;
+  int num_channels;
+
+  channels = load_config(path, &num_channels);
+  TEST_ASSERT_NULL(channels);
+  const char *error = load_config_error();
+  TEST_ASSERT_NOT_NULL(error);
+  TEST_ASSERT_TRUE(strstr(error, "array") != NULL);
+}
+
+void test_empty_channels_array(void) {
+  char path[256];
+  snprintf(path, sizeof(path), "%s/empty_channels.json", workdir);
+  writeFile(path, "{\"channels\": []}");
+
+  channel *channels;
+  int num_channels;
+
+  channels = load_config(path, &num_channels);
+  TEST_ASSERT_NULL(channels);
+  const char *error = load_config_error();
+  TEST_ASSERT_NOT_NULL(error);
+  TEST_ASSERT_TRUE(strstr(error, "empty") != NULL);
+}
+
+void test_channel_not_object(void) {
+  char path[256];
+  snprintf(path, sizeof(path), "%s/channel_not_object.json", workdir);
+  writeFile(path, "{\"channels\": [\"not-an-object\"]}");
+
+  channel *channels;
+  int num_channels;
+
+  channels = load_config(path, &num_channels);
+  TEST_ASSERT_NULL(channels);
+  const char *error = load_config_error();
+  TEST_ASSERT_NOT_NULL(error);
+  TEST_ASSERT_TRUE(strstr(error, "object") != NULL);
+}
+
+void test_channel_missing_type(void) {
+  char path[256];
+  snprintf(path, sizeof(path), "%s/missing_type.json", workdir);
+  writeFile(path, "{\"channels\": [{\"code\": \"ABS_X\"}]}");
+
+  channel *channels;
+  int num_channels;
+
+  channels = load_config(path, &num_channels);
+  TEST_ASSERT_NULL(channels);
+  const char *error = load_config_error();
+  TEST_ASSERT_NOT_NULL(error);
+  TEST_ASSERT_TRUE(strstr(error, "type") != NULL);
+}
+
+void test_unknown_channel_type(void) {
+  char path[256];
+  snprintf(path, sizeof(path), "%s/unknown_type.json", workdir);
+  writeFile(path, "{\"channels\": [{\"type\": \"invalid\"}]}");
+
+  channel *channels;
+  int num_channels;
+
+  channels = load_config(path, &num_channels);
+  TEST_ASSERT_NULL(channels);
+  const char *error = load_config_error();
+  TEST_ASSERT_NOT_NULL(error);
+  TEST_ASSERT_TRUE(strstr(error, "unknown") != NULL);
+}
+
+void test_axis_missing_code(void) {
+  char path[256];
+  snprintf(path, sizeof(path), "%s/axis_missing_code.json", workdir);
+  writeFile(path, "{\"channels\": [{\"type\": \"axis\"}]}");
+
+  channel *channels;
+  int num_channels;
+
+  channels = load_config(path, &num_channels);
+  TEST_ASSERT_NULL(channels);
+  const char *error = load_config_error();
+  TEST_ASSERT_NOT_NULL(error);
+  TEST_ASSERT_TRUE(strstr(error, "code") != NULL);
+}
+
+void test_axis_invalid_code(void) {
+  char path[256];
+  snprintf(path, sizeof(path), "%s/axis_invalid_code.json", workdir);
+  writeFile(
+      path,
+      "{\"channels\": [{\"type\": \"axis\", \"code\": \"INVALID_CODE\"}]}");
+
+  channel *channels;
+  int num_channels;
+
+  channels = load_config(path, &num_channels);
+  TEST_ASSERT_NULL(channels);
+  const char *error = load_config_error();
+  TEST_ASSERT_NOT_NULL(error);
+  TEST_ASSERT_TRUE(strstr(error, "unknown") != NULL ||
+                   strstr(error, "axis") != NULL);
+}
+
+void test_button_missing_code(void) {
+  char path[256];
+  snprintf(path, sizeof(path), "%s/button_missing_code.json", workdir);
+  writeFile(path,
+            "{\"channels\": [{\"type\": \"button\", \"threshold\": 512}]}");
+
+  channel *channels;
+  int num_channels;
+
+  channels = load_config(path, &num_channels);
+  TEST_ASSERT_NULL(channels);
+  const char *error = load_config_error();
+  TEST_ASSERT_NOT_NULL(error);
+  TEST_ASSERT_TRUE(strstr(error, "code") != NULL);
+}
+
+void test_button_invalid_code(void) {
+  char path[256];
+  snprintf(path, sizeof(path), "%s/button_invalid_code.json", workdir);
+  writeFile(path,
+            "{\"channels\": [{\"type\": \"button\", \"code\": \"INVALID\", "
+            "\"threshold\": 512}]}");
+
+  channel *channels;
+  int num_channels;
+
+  channels = load_config(path, &num_channels);
+  TEST_ASSERT_NULL(channels);
+  const char *error = load_config_error();
+  TEST_ASSERT_NOT_NULL(error);
+  TEST_ASSERT_TRUE(strstr(error, "unknown") != NULL ||
+                   strstr(error, "button") != NULL);
+}
+
+void test_button_missing_threshold(void) {
+  char path[256];
+  snprintf(path, sizeof(path), "%s/button_missing_threshold.json", workdir);
+  writeFile(path,
+            "{\"channels\": [{\"type\": \"button\", \"code\": \"BTN_1\"}]}");
+
+  channel *channels;
+  int num_channels;
+
+  channels = load_config(path, &num_channels);
+  TEST_ASSERT_NULL(channels);
+  const char *error = load_config_error();
+  TEST_ASSERT_NOT_NULL(error);
+  TEST_ASSERT_TRUE(strstr(error, "threshold") != NULL);
+}
+
+void test_multi_missing_num_positions(void) {
+  char path[256];
+  snprintf(path, sizeof(path), "%s/multi_missing_positions.json", workdir);
+  writeFile(path, "{\"channels\": [{\"type\": \"multi\"}]}");
+
+  channel *channels;
+  int num_channels;
+
+  channels = load_config(path, &num_channels);
+  TEST_ASSERT_NULL(channels);
+  const char *error = load_config_error();
+  TEST_ASSERT_NOT_NULL(error);
+  TEST_ASSERT_TRUE(strstr(error, "num_positions") != NULL);
+}
+
+void test_multi_invalid_num_positions(void) {
+  char path[256];
+  snprintf(path, sizeof(path), "%s/multi_invalid_positions.json", workdir);
+  writeFile(path,
+            "{\"channels\": [{\"type\": \"multi\", \"num_positions\": 5}]}");
+
+  channel *channels;
+  int num_channels;
+
+  channels = load_config(path, &num_channels);
+  TEST_ASSERT_NULL(channels);
+  const char *error = load_config_error();
+  TEST_ASSERT_NOT_NULL(error);
+  TEST_ASSERT_TRUE(strstr(error, "2-4") != NULL ||
+                   strstr(error, "num_positions") != NULL);
+}
+
+void test_multi_missing_thresholds(void) {
+  char path[256];
+  snprintf(path, sizeof(path), "%s/multi_missing_thresholds.json", workdir);
+  writeFile(path,
+            "{\"channels\": [{\"type\": \"multi\", \"num_positions\": 2}]}");
+
+  channel *channels;
+  int num_channels;
+
+  channels = load_config(path, &num_channels);
+  TEST_ASSERT_NULL(channels);
+  const char *error = load_config_error();
+  TEST_ASSERT_NOT_NULL(error);
+  TEST_ASSERT_TRUE(strstr(error, "thresholds") != NULL);
+}
+
+void test_multi_wrong_threshold_count(void) {
+  char path[256];
+  snprintf(path, sizeof(path), "%s/multi_wrong_threshold_count.json", workdir);
+  writeFile(path, "{\"channels\": [{\"type\": \"multi\", \"num_positions\": 3, "
+                  "\"thresholds\": [512]}]}");
+
+  channel *channels;
+  int num_channels;
+
+  channels = load_config(path, &num_channels);
+  TEST_ASSERT_NULL(channels);
+  const char *error = load_config_error();
+  TEST_ASSERT_NOT_NULL(error);
+  TEST_ASSERT_TRUE(strstr(error, "thresholds") != NULL ||
+                   strstr(error, "expected") != NULL);
+}
+
+void test_multi_missing_codes(void) {
+  char path[256];
+  snprintf(path, sizeof(path), "%s/multi_missing_codes.json", workdir);
+  writeFile(path, "{\"channels\": [{\"type\": \"multi\", \"num_positions\": 2, "
+                  "\"thresholds\": [512]}]}");
+
+  channel *channels;
+  int num_channels;
+
+  channels = load_config(path, &num_channels);
+  TEST_ASSERT_NULL(channels);
+  const char *error = load_config_error();
+  TEST_ASSERT_NOT_NULL(error);
+  TEST_ASSERT_TRUE(strstr(error, "codes") != NULL);
+}
+
+void test_multi_wrong_codes_count(void) {
+  char path[256];
+  snprintf(path, sizeof(path), "%s/multi_wrong_codes_count.json", workdir);
+  writeFile(path, "{\"channels\": [{\"type\": \"multi\", \"num_positions\": 2, "
+                  "\"thresholds\": [512], \"codes\": [\"BTN_1\"]}]}");
+
+  channel *channels;
+  int num_channels;
+
+  channels = load_config(path, &num_channels);
+  TEST_ASSERT_NULL(channels);
+  const char *error = load_config_error();
+  TEST_ASSERT_NOT_NULL(error);
+  TEST_ASSERT_TRUE(strstr(error, "codes") != NULL ||
+                   strstr(error, "expected") != NULL);
+}
+
+void test_multi_invalid_code(void) {
+  char path[256];
+  snprintf(path, sizeof(path), "%s/multi_invalid_code.json", workdir);
+  writeFile(path,
+            "{\"channels\": [{\"type\": \"multi\", \"num_positions\": 2, "
+            "\"thresholds\": [512], \"codes\": [\"BTN_1\", \"INVALID\"]}]}");
+
+  channel *channels;
+  int num_channels;
+
+  channels = load_config(path, &num_channels);
+  TEST_ASSERT_NULL(channels);
+  const char *error = load_config_error();
+  TEST_ASSERT_NOT_NULL(error);
+  TEST_ASSERT_TRUE(strstr(error, "unknown") != NULL ||
+                   strstr(error, "button") != NULL);
+}
+
+void test_button_valid_config(void) {
+  char path[256];
+  snprintf(path, sizeof(path), "%s/button_valid.json", workdir);
+  writeFile(path, "{\"channels\": [{\"type\": \"button\", \"code\": \"BTN_1\", "
+                  "\"threshold\": 512}]}");
+
+  channel *channels;
+  int num_channels;
+
+  channels = load_config(path, &num_channels);
+  TEST_ASSERT_NOT_NULL(channels);
+  TEST_ASSERT_EQUAL_INT(1, num_channels);
+  TEST_ASSERT_EQUAL_INT(CTL_BUTTON, channels[0].type);
+  TEST_ASSERT_EQUAL_INT(BTN_1, channels[0].code);
+  TEST_ASSERT_EQUAL_INT(512, channels[0].threshold);
+
+  free_config(channels);
+}
+
+void test_multi_valid_config(void) {
+  char path[256];
+  snprintf(path, sizeof(path), "%s/multi_valid.json", workdir);
+  writeFile(path,
+            "{\"channels\": [{\"type\": \"multi\", \"num_positions\": 2, "
+            "\"thresholds\": [512], \"codes\": [\"BTN_1\", \"BTN_2\"]}]}");
+
+  channel *channels;
+  int num_channels;
+
+  channels = load_config(path, &num_channels);
+  TEST_ASSERT_NOT_NULL(channels);
+  TEST_ASSERT_EQUAL_INT(1, num_channels);
+  TEST_ASSERT_EQUAL_INT(CTL_MULTI, channels[0].type);
+  TEST_ASSERT_EQUAL_INT(2, channels[0].num_positions);
+  TEST_ASSERT_EQUAL_INT(512, channels[0].thresholds[0]);
+  TEST_ASSERT_EQUAL_INT(BTN_1, channels[0].codes[0]);
+  TEST_ASSERT_EQUAL_INT(BTN_2, channels[0].codes[1]);
+  TEST_ASSERT_EQUAL_INT(0, channels[0].hysteresis);
+
+  free_config(channels);
+}
+
+void test_multi_with_hysteresis(void) {
+  char path[256];
+  snprintf(path, sizeof(path), "%s/multi_hysteresis.json", workdir);
+  writeFile(path, "{\"channels\": [{\"type\": \"multi\", \"num_positions\": 2, "
+                  "\"thresholds\": [512], \"codes\": [\"BTN_1\", \"BTN_2\"], "
+                  "\"hysteresis\": "
+                  "10}]}");
+
+  channel *channels;
+  int num_channels;
+
+  channels = load_config(path, &num_channels);
+  TEST_ASSERT_NOT_NULL(channels);
+  TEST_ASSERT_EQUAL_INT(1, num_channels);
+  TEST_ASSERT_EQUAL_INT(CTL_MULTI, channels[0].type);
+  TEST_ASSERT_EQUAL_INT(10, channels[0].hysteresis);
+
+  free_config(channels);
+}
+
+void test_mixed_channel_types(void) {
+  char path[256];
+  snprintf(path, sizeof(path), "%s/mixed_types.json", workdir);
+  writeFile(
+      path,
+      "{\"channels\": ["
+      "{\"type\": \"axis\", \"code\": \"ABS_X\"}, "
+      "{\"type\": \"button\", \"code\": \"BTN_1\", \"threshold\": 512}, "
+      "{\"type\": \"multi\", \"num_positions\": 2, \"thresholds\": [512], "
+      "\"codes\": [\"BTN_2\", \"BTN_3\"]}"
+      "]}");
+
+  channel *channels;
+  int num_channels;
+
+  channels = load_config(path, &num_channels);
+  TEST_ASSERT_NOT_NULL(channels);
+  TEST_ASSERT_EQUAL_INT(3, num_channels);
+  TEST_ASSERT_EQUAL_INT(CTL_AXIS, channels[0].type);
+  TEST_ASSERT_EQUAL_INT(CTL_BUTTON, channels[1].type);
+  TEST_ASSERT_EQUAL_INT(CTL_MULTI, channels[2].type);
+
+  free_config(channels);
+}
+
 int main(void) {
   UNITY_BEGIN();
   RUN_TEST(test_axis2str);
   RUN_TEST(test_button2str);
   RUN_TEST(test_load_valid_config);
   RUN_TEST(test_load_missing_config);
+
+  // JSON structure error tests
+  RUN_TEST(test_missing_channels_field);
+  RUN_TEST(test_channels_not_array);
+  RUN_TEST(test_empty_channels_array);
+  RUN_TEST(test_channel_not_object);
+  RUN_TEST(test_channel_missing_type);
+  RUN_TEST(test_unknown_channel_type);
+
+  // Axis channel error tests
+  RUN_TEST(test_axis_missing_code);
+  RUN_TEST(test_axis_invalid_code);
+
+  // Button channel error tests
+  RUN_TEST(test_button_missing_code);
+  RUN_TEST(test_button_invalid_code);
+  RUN_TEST(test_button_missing_threshold);
+
+  // Multi channel error tests
+  RUN_TEST(test_multi_missing_num_positions);
+  RUN_TEST(test_multi_invalid_num_positions);
+  RUN_TEST(test_multi_missing_thresholds);
+  RUN_TEST(test_multi_wrong_threshold_count);
+  RUN_TEST(test_multi_missing_codes);
+  RUN_TEST(test_multi_wrong_codes_count);
+  RUN_TEST(test_multi_invalid_code);
+
+  // Valid configuration tests
+  RUN_TEST(test_button_valid_config);
+  RUN_TEST(test_multi_valid_config);
+  RUN_TEST(test_multi_with_hysteresis);
+  RUN_TEST(test_mixed_channel_types);
+
   return UNITY_END();
 }
