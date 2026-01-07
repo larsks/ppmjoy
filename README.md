@@ -134,9 +134,17 @@ The program needs permission to read from the ALSA device, and to create [uinput
 
 [uinput]: https://www.kernel.org/doc/html/v4.12/input/uinput.html
 
-1. In many distributions, `/dev/uinput` is writeable by the `input` group, and sound devices are readable by the `audio` group. Ensuring that you are a member of these groups is sufficient to provide the necessary access.
+1. Many distributions provide an `audio` group with appropriate permissions on
+   sound devices. There's a good chance you're already a member of that group,
+since access to sound devices is required for things like watching cat videos
+on YouTube.
 
-2. If your distribution defaults to root-only access to either device, you can create [udev] rules to change the group membership. You can find example rules in the file [ppmjoy.rules](ppmjoy.rules) that will make `/dev/uinput` writeable by group `input` (this group must of course exist on  your system). Install this file in  `/etc/udev/rules.d/99-ppmjoy.rules`, and then run:
+1. `/dev/uinput` often defaults to `root`-only access. You can create [udev]
+   rules to change the group and permissions of `/dev/uinput`. You can find
+example rules in the file [ppmjoy.rules](ppmjoy.rules) that will make
+`/dev/uinput` writeable by group `input` (this group must of course exist on
+your system). Install this file in  `/etc/udev/rules.d/99-ppmjoy.rules`, and
+then run:
 
     [udev]: https://www.freedesktop.org/software/systemd/man/latest/udev.html
 
@@ -145,7 +153,7 @@ The program needs permission to read from the ALSA device, and to create [uinput
     udevadm trigger
     ```
 
-3. You can run `ppmjoy` as root, but why would you do that when there are better options available?
+1. You can run `ppmjoy` as root, but why would you do that when there are better options available?
 
 
 ## License
