@@ -446,15 +446,16 @@ int main(int argc, char *argv[]) {
   channels = load_config(app_config.config_path, &num_channels);
   if (!channels) {
     const char *error = load_config_error();
-    logmsg(LOG_ERROR, "failed to load configuration: %s",
-           error ? error : "configuration file does not exist");
-
     if (error) {
       // Hard error - config exists but is invalid
+      logmsg(LOG_ERROR, "failed to load configuration: %s", error);
       exit(1);
     } else {
       // Soft error - config file doesn't exist, use defaults
-      logmsg(LOG_WARNING, "using default channel configuration");
+      logmsg(
+          LOG_WARNING,
+          "config file %s does not exist; using default channel configuration",
+          app_config.config_path);
       channels = default_channels;
       num_channels = ARRAY_SIZE(default_channels);
     }
