@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/param.h>
 #include <sys/time.h>
 #include <time.h>
 
@@ -14,6 +15,7 @@
 
 #include "config.h"
 #include "event.h"
+#include "log.h"
 #include "must.h"
 
 #define CLEAR() printf("\033[H\033[J")
@@ -83,59 +85,58 @@ int init_alsa(state_t *state, char *dev, unsigned int rate, unsigned int period,
   int err;
   snd_pcm_hw_params_t *hw_params = 0;
 
-  if (app_config.verbose)
-    fprintf(stderr, "opening alsa device %s\n", dev);
+  logmsg(LOG_INFO, "opening alsa device %s", dev);
 
   if ((err = snd_pcm_open(&state->handle, dev, SND_PCM_STREAM_CAPTURE, 0)) <
       0) {
-    fprintf(stderr, "failed to open audio device %s (%s)\n", dev,
-            snd_strerror(err));
+    logmsg(LOG_ERROR, "failed to open audio device %s (%s)", dev,
+           snd_strerror(err));
     goto error;
   }
 
   if ((err = snd_pcm_hw_params_malloc(&hw_params)) < 0) {
-    fprintf(stderr, "failed to allocate hardware parameter structure (%s)\n",
-            snd_strerror(err));
+    logmsg(LOG_ERROR, "failed to allocate hardware parameter structure (%s)",
+           snd_strerror(err));
     goto error;
   }
 
   if ((err = snd_pcm_hw_params_any(state->handle, hw_params)) < 0) {
-    fprintf(stderr, "failed to initialize hardware parameter structure (%s)\n",
-            snd_strerror(err));
+    logmsg(LOG_ERROR, "failed to initialize hardware parameter structure (%s)",
+           snd_strerror(err));
     goto error;
   }
 
   if ((err = snd_pcm_hw_params_set_access(state->handle, hw_params,
                                           SND_PCM_ACCESS_RW_INTERLEAVED)) < 0) {
-    fprintf(stderr, "failed to set access type (%s)\n", snd_strerror(err));
+    logmsg(LOG_ERROR, "failed to set access type (%s)", snd_strerror(err));
     goto error;
   }
 
   if ((err = snd_pcm_hw_params_set_format(state->handle, hw_params,
                                           SND_PCM_FORMAT_S16_LE)) < 0) {
-    fprintf(stderr, "failed to set sample format (%s)\n", snd_strerror(err));
+    logmsg(LOG_ERROR, "failed to set sample format (%s)", snd_strerror(err));
     goto error;
   }
 
   if ((err = snd_pcm_hw_params_set_rate_near(state->handle, hw_params, &rate,
                                              0)) < 0) {
-    fprintf(stderr, "failed to set sample rate (%s)\n", snd_strerror(err));
+    logmsg(LOG_ERROR, "failed to set sample rate (%s)", snd_strerror(err));
     goto error;
   }
 
   if ((err = snd_pcm_hw_params_set_channels(state->handle, hw_params, 2)) < 0) {
-    fprintf(stderr, "failed to set channel count (%s)\n", snd_strerror(err));
+    logmsg(LOG_ERROR, "failed to set channel count (%s)", snd_strerror(err));
     goto error;
   }
 
   if ((err = snd_pcm_hw_params(state->handle, hw_params)) < 0) {
-    fprintf(stderr, "failed to set parameters (%s)\n", snd_strerror(err));
+    logmsg(LOG_ERROR, "failed to set parameters (%s)", snd_strerror(err));
     goto error;
   }
 
   if ((err = snd_pcm_prepare(state->handle)) < 0) {
-    fprintf(stderr, "failed to prepare audio interface for use (%s)\n",
-            snd_strerror(err));
+    logmsg(LOG_ERROR, "failed to prepare audio interface for use (%s)",
+           snd_strerror(err));
     goto error;
   }
 
@@ -161,12 +162,37 @@ cleanup:
   return ret;
 }
 
+static char *list_multi_keys(channel *c) {
+  static char buf[128];
+  char *ptr = buf;
+  char *end = buf + sizeof(buf) - 1;
+
+  for (int j = 0; j < c->num_positions; j++) {
+    const char *name = button2str(c->codes[j]);
+    if (!name)
+      name = "UNKNOWN";
+
+    // Add space before all buttons except the first
+    if (j > 0 && ptr < end) {
+      *ptr++ = ' ';
+    }
+
+    // Append button name
+    int written = snprintf(ptr, end - ptr, "%s", name);
+    if (written > 0) {
+      ptr += MIN(written, end - ptr);
+    }
+  }
+
+  *ptr = '\0'; // Ensure null termination
+  return buf;
+}
+
 int init_uinput(state_t *state) {
   /* initialize uinput joystick stuff */
   int uinput_fd;
 
-  if (app_config.verbose)
-    fprintf(stderr, "configuring uinput\n");
+  logmsg(LOG_INFO, "configuring uinput");
 
   MUST(uinput_fd = open("/dev/uinput", O_WRONLY | O_NONBLOCK),
        "failed to open /dev/uinput");
@@ -174,39 +200,33 @@ int init_uinput(state_t *state) {
   for (int i = 0; i < num_channels; i++) {
     switch (channels[i].type) {
     case CTL_AXIS:
-      if (app_config.verbose > 1)
-        fprintf(stderr, "  channel %i -> %7s %s\n", i, "axis",
-                axis2str(channels[i].code));
+      logmsg(LOG_DEBUG, "  channel %i -> %7s %s", i, "axis",
+             axis2str(channels[i].code));
       MUST(ioctl(uinput_fd, UI_SET_EVBIT, EV_ABS), "failed to configure axis");
       MUST(ioctl(uinput_fd, UI_SET_ABSBIT, channels[i].code),
            "failed to configure axis");
       break;
     case CTL_BUTTON:
-      if (app_config.verbose > 1)
-        fprintf(stderr, "  channel %i -> %7s %s\n", i, "button",
-                button2str(channels[i].code));
+      logmsg(LOG_DEBUG, "  channel %i -> %7s %s", i, "button",
+             button2str(channels[i].code));
       MUST(ioctl(uinput_fd, UI_SET_EVBIT, EV_KEY),
            "failed to configure button");
       MUST(ioctl(uinput_fd, UI_SET_KEYBIT, channels[i].code),
            "failed to configure button");
       break;
     case CTL_MULTI:
-      if (app_config.verbose > 1)
-        fprintf(stderr, "  channel %i -> %7s ", i, "multi");
+      logmsg(LOG_DEBUG, "  channel %i -> %7s %s", i, "multi",
+             list_multi_keys(&channels[i]));
       MUST(ioctl(uinput_fd, UI_SET_EVBIT, EV_KEY),
            "failed to configure multi-key control");
       // Register all button codes for this multi-position switch
       for (int j = 0; j < channels[i].num_positions; j++) {
-        if (app_config.verbose > 1)
-          fprintf(stderr, "%s ", button2str(channels[i].codes[j]));
         MUST(ioctl(uinput_fd, UI_SET_KEYBIT, channels[i].codes[j]),
              "failed to configure multi-key control");
       }
-      if (app_config.verbose > 1)
-        fprintf(stderr, "\n");
       break;
     default:
-      fprintf(stderr, "invalid control type: %d\n", channels[i].type);
+      logmsg(LOG_ERROR, "invalid control type: %d", channels[i].type);
       exit(1);
     }
   }
@@ -228,9 +248,8 @@ int init_uinput(state_t *state) {
 
   if (app_config.verbose) {
     if ((ioctl(uinput_fd, UI_GET_SYSNAME(sizeof(dev_name)), dev_name)) >= 0) {
-      fprintf(stderr,
-              "created new input device /sys/devices/virtual/input/%s\n",
-              dev_name);
+      logmsg(LOG_INFO, "created new input device /sys/devices/virtual/input/%s",
+             dev_name);
     }
   }
 
@@ -291,6 +310,7 @@ static void parse_arguments(int argc, char *argv[]) {
       break;
     case 'v':
       app_config.verbose++;
+      set_log_level(MIN(app_config.verbose + 1, LOG_DEBUG));
       break;
     case 'm':
       app_config.monitor = 1;
@@ -335,8 +355,14 @@ static void display_channel_event(int channel_idx, channel *ch, int value,
   if (channel_idx == 0)
     HOME();
 
-  printf("[%d] %7s %d -> %d:%d\n", channel_idx, controller2str(ch->type), value,
-         ev->type, ev->code);
+  const char *name =
+      ev->type == EV_ABS ? axis2str(ev->code) : button2str(ev->code);
+  if (name) {
+    printf("[%d] %7s %d -> %s\n", channel_idx, controller2str(ch->type), value,
+           name);
+  } else {
+    printf("\n");
+  }
 }
 
 static void run_event_loop(device_context_t *devices) {
@@ -345,11 +371,12 @@ static void run_event_loop(device_context_t *devices) {
 
   init_channel_state(num_channels, last_position, button_states);
 
+  logmsg(LOG_INFO, "waiting for initial sync");
+
   // Wait for initial sync
   wait_for_sync(&devices->alsa_state);
 
-  if (app_config.verbose)
-    fprintf(stderr, "received initial sync\n");
+  logmsg(LOG_INFO, "received initial sync");
 
   if (app_config.monitor)
     CLEAR();
@@ -409,23 +436,25 @@ static void cleanup_config(void) {
 }
 
 int main(int argc, char *argv[]) {
+  set_log_level(LOG_WARNING);
+
   // Parse arguments
   parse_arguments(argc, argv);
 
   // Load configuration
-  if (app_config.verbose)
-    fprintf(stderr, "loading configuration from %s\n", app_config.config_path);
+  logmsg(LOG_INFO, "loading configuration from %s", app_config.config_path);
   channels = load_config(app_config.config_path, &num_channels);
   if (!channels) {
     const char *error = load_config_error();
-    fprintf(stderr, "error: failed to load configuration: %s\n", error);
+    logmsg(LOG_ERROR, "failed to load configuration: %s",
+           error ? error : "configuration file does not exist");
 
     if (error) {
       // Hard error - config exists but is invalid
       exit(1);
     } else {
       // Soft error - config file doesn't exist, use defaults
-      fprintf(stderr, "       using default channel configuration\n");
+      logmsg(LOG_WARNING, "using default channel configuration");
       channels = default_channels;
       num_channels = ARRAY_SIZE(default_channels);
     }

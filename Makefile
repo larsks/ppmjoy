@@ -1,5 +1,5 @@
 EXE = ppmjoy
-SRCS = main.c must.c config.c vendor/tomlc99/toml.c event.c
+SRCS = main.c must.c config.c vendor/tomlc99/toml.c event.c log.c
 OBJS = $(SRCS:.c=.o)
 
 CPPFLAGS=-I. -Ivendor/tomlc99 -Ivendor/unity/src

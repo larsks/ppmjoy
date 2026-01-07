@@ -1,5 +1,3 @@
-#include "event.h"
-#include "config.h"
 #include <alsa/asoundlib.h>
 #include <limits.h>
 #include <linux/input.h>
@@ -10,6 +8,10 @@
 #include <sys/time.h>
 #include <time.h>
 #include <unistd.h>
+
+#include "config.h"
+#include "event.h"
+#include "log.h"
 
 #define BUTTON_RELEASE_TIME_MS 100
 
@@ -103,8 +105,8 @@ void read_pulse_alsa(state_t *state) {
     if (state->offset == state->samples) { // refill buffer
       if ((err = snd_pcm_readi(state->handle, state->buffer, state->samples)) !=
           state->samples) {
-        fprintf(stderr, "read from audio interface failed (%s)\n",
-                snd_strerror(err));
+        logmsg(LOG_ERROR, "read from audio interface failed (%s)\n",
+               snd_strerror(err));
         exit(1);
       }
       state->offset = 0;
