@@ -1,3 +1,4 @@
 -I.
 -Ivendor/unity/src
 -Ivendor/tomlc99
+-Ivendor/termcolor-c/include

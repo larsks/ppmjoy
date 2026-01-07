@@ -4,3 +4,6 @@
 [submodule "vendor/tomlc99"]
 	path = vendor/tomlc99
 	url = https://github.com/cktan/tomlc99.git
+[submodule "vendor/termcolor-c"]
+	path = vendor/termcolor-c
+	url = https://github.com/ararslan/termcolor-c

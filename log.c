@@ -4,6 +4,7 @@
 #include <time.h>
 
 #include "log.h"
+#include "termcolor-c.h"
 
 static LOGLEVEL loglevel = LOG_INFO;
 
@@ -40,10 +41,27 @@ void logmsg(LOGLEVEL level, const char *fmt, ...) {
     strftime(timebuf, sizeof(timebuf) - 1, "%Y-%m-%dT%H:%M:%S",
              localtime(&now));
 
+    fprintf(stderr, "%s ", timebuf);
+    switch (level) {
+    case LOG_ERROR:
+      text_red(stderr);
+      break;
+    case LOG_INFO:
+      text_green(stderr);
+      break;
+    case LOG_WARNING:
+      text_yellow(stderr);
+      break;
+    default:
+      break;
+    }
+    fprintf(stderr, "%7s ", levelname(level));
+    reset_colors(stderr);
+
     va_start(ap, fmt);
-    fprintf(stderr, "%s %7s ", timebuf, levelname(level));
     vfprintf(stderr, fmt, ap);
-    fprintf(stderr, "\n");
     va_end(ap);
+
+    fprintf(stderr, "\n");
   }
 }
