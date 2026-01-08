@@ -98,7 +98,7 @@ static bool data_to_pulse(int16_t (*data)[2], size_t *offset, size_t samples,
   return false;
 }
 
-void read_pulse_alsa(state_t *state) {
+void read_pulse_alsa(alsa_state_t *state) {
   int err;
   init_pulse(&state->pulse);
   for (;;) {
@@ -117,7 +117,8 @@ void read_pulse_alsa(state_t *state) {
   }
 }
 
-// Helper: Check if 100ms has elapsed since press_time
+// Check if BUTTON_RELEASE_TIME_MS (100ms by default) has elapsed since
+// press_time.
 static int should_auto_release(struct timespec *press_time) {
   struct timespec now;
   clock_gettime(CLOCK_MONOTONIC, &now);
@@ -128,7 +129,8 @@ static int should_auto_release(struct timespec *press_time) {
   return elapsed_ms >= BUTTON_RELEASE_TIME_MS;
 }
 
-// Helper: Send a button release event
+// Send a button release event. This is used to generate synthetic press/release
+// pairs for "multi" type controls.
 static void send_release_event(int uinput, int button_code) {
   struct input_event ev;
   memset(&ev, 0, sizeof(ev));
@@ -138,7 +140,7 @@ static void send_release_event(int uinput, int button_code) {
   write(uinput, &ev, sizeof(ev));
 }
 
-// Helper: Determine which position a value maps to for a multi-position switch
+// Determine which position a value maps to for a multi-position switch
 static int determine_position(int value, channel *ch) {
   // For a channel with N positions, we have N-1 thresholds
   // Position 0: value < threshold[0]
@@ -153,7 +155,7 @@ static int determine_position(int value, channel *ch) {
   return ch->num_positions - 1; // highest position
 }
 
-// Helper: Determine position with hysteresis to prevent bouncing
+// Determine position with hysteresis to prevent bouncing
 static int determine_position_with_hysteresis(int value, int last_pos,
                                               channel *ch) {
   if (last_pos < 0) {
@@ -182,7 +184,7 @@ static int determine_position_with_hysteresis(int value, int last_pos,
   return determine_position(value, ch);
 }
 
-// Helper: Process axis channel
+// Generate uinput event for an axis channel
 static void process_axis_channel(channel *ch, int value,
                                  struct input_event *ev) {
   ev->type = EV_ABS;
@@ -190,7 +192,7 @@ static void process_axis_channel(channel *ch, int value,
   ev->value = value;
 }
 
-// Helper: Process button channel
+// Generate uinput event for a button channel
 static void process_button_channel(channel *ch, int value,
                                    struct input_event *ev) {
   ev->type = EV_KEY;
@@ -201,7 +203,7 @@ static void process_button_channel(channel *ch, int value,
     ev->value = 1;
 }
 
-// Helper: Process multi-position switch channel
+// Process multi-position switch channel
 // Returns 1 if an event was generated, 0 otherwise
 static int process_multi_channel(channel *ch, int value, int channel_idx,
                                  button_state_t *btn_state, int *last_position,
@@ -233,7 +235,7 @@ static int process_multi_channel(channel *ch, int value, int channel_idx,
 }
 
 // Wait for initial sync pulse
-void wait_for_sync(state_t *state) {
+void wait_for_sync(alsa_state_t *state) {
   for (;;) {
     read_pulse_alsa(state);
     if (state->pulse.type == SYNC)
@@ -257,7 +259,7 @@ void check_auto_release(int uinput_fd, channel *channels, int num_channels,
 
 // Read pulse pair for a channel (high + low)
 // Returns 0 on success, -1 if sync lost
-int read_channel_pulse(state_t *state, int *value_out) {
+int read_channel_pulse(alsa_state_t *state, int *value_out) {
   int value;
 
   // Look for a high pulse
@@ -300,7 +302,7 @@ int generate_channel_event(channel *ch, int value, int channel_idx,
 
 // Validate frame end (trailing high + sync pulses)
 // Returns 0 on success, -1 if sync lost
-int validate_frame_end(state_t *state) {
+int validate_frame_end(alsa_state_t *state) {
   // Skip high pulse
   read_pulse_alsa(state);
   if (state->pulse.type != HIGH)

@@ -39,13 +39,15 @@ typedef struct {
 } tx_parms;
 
 typedef struct {
-  state_t alsa_state;
+  alsa_state_t alsa_state;
   int uinput_fd;
 } device_context_t;
 
 channel *channels = NULL;
 int num_channels = 0;
 
+// This is the default mapping of channels to input events,
+// used if the configuration file does not exist.
 static channel default_channels[] = {
     // clang-format off
   {CTL_AXIS,  ABS_RX},
@@ -56,7 +58,7 @@ static channel default_channels[] = {
 };
 app_config_t app_config;
 
-void destroy_alsa(state_t *state) {
+void destroy_alsa(alsa_state_t *state) {
   if (state->buffer)
     free(state->buffer);
 
@@ -64,8 +66,9 @@ void destroy_alsa(state_t *state) {
     snd_pcm_close(state->handle);
 }
 
-int init_alsa(state_t *state, char *dev, unsigned int rate, unsigned int period,
-              unsigned int sync_length, int16_t threshhold) {
+int init_alsa(alsa_state_t *state, char *dev, unsigned int rate,
+              unsigned int period, unsigned int sync_length,
+              int16_t threshhold) {
   int ret = 0;
   int err;
   snd_pcm_hw_params_t *hw_params = 0;
@@ -147,6 +150,8 @@ cleanup:
   return ret;
 }
 
+// Used to produce a list of symbolic key names
+// in the --monitor mode output.
 static char *list_multi_keys(channel *c) {
   static char buf[128];
   char *ptr = buf;
@@ -173,7 +178,7 @@ static char *list_multi_keys(channel *c) {
   return buf;
 }
 
-int init_uinput(state_t *state) {
+int init_uinput(alsa_state_t *state) {
   /* initialize uinput joystick stuff */
   int uinput_fd;
 

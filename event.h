@@ -25,7 +25,7 @@ typedef struct {
   int16_t (*buffer)[2];
   size_t offset;
   snd_pcm_t *handle;
-} state_t;
+} alsa_state_t;
 
 typedef struct {
   int pressed_button_code;
@@ -36,10 +36,10 @@ typedef struct {
 void init_pulse(pulse_t *p);
 
 // Read a pulse from ALSA
-void read_pulse_alsa(state_t *state);
+void read_pulse_alsa(alsa_state_t *state);
 
 // Wait for initial sync pulse
-void wait_for_sync(state_t *state);
+void wait_for_sync(alsa_state_t *state);
 
 // Check all channels for auto-release timeout (CTL_MULTI)
 void check_auto_release(int uinput_fd, channel *channels, int num_channels,
@@ -47,7 +47,7 @@ void check_auto_release(int uinput_fd, channel *channels, int num_channels,
 
 // Read pulse pair for a channel (high + low)
 // Returns 0 on success, -1 if sync lost
-int read_channel_pulse(state_t *state, int *value_out);
+int read_channel_pulse(alsa_state_t *state, int *value_out);
 
 // Generate input event from raw pulse value
 // Returns 1 if event should be sent, 0 otherwise
@@ -57,6 +57,6 @@ int generate_channel_event(channel *ch, int value, int channel_idx,
 
 // Validate frame end (trailing high + sync pulses)
 // Returns 0 on success, -1 if sync lost
-int validate_frame_end(state_t *state);
+int validate_frame_end(alsa_state_t *state);
 
 #endif // _EVENT_H
