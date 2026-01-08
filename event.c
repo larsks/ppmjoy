@@ -56,6 +56,7 @@ static bool datum_to_pulse(int16_t datum, pulse_params_t *params, pulse_t *p) {
       p->length++;
       break;
     default: // error
+      logmsg(LOG_ERROR, "unknown pulse type");
       exit(1);
     }
   } else { // low signal
@@ -71,6 +72,7 @@ static bool datum_to_pulse(int16_t datum, pulse_params_t *params, pulse_t *p) {
       complete = true;
       break;
     default: // error
+      logmsg(LOG_ERROR, "unknown pulse type");
       exit(1);
     }
   }
