@@ -1,7 +1,7 @@
 # ppmjoy
-
+Alison Ahn
 > [!NOTE]
-> 
+>
 > This is a fork of [ppm][ppm_repo], by Jason McCarty. Jason's [original
 > license] is not open source; I have [contacted Jason] about re-licensing the
 > original project with an open source license. Depending on Jason's response
@@ -11,17 +11,18 @@
 [original license]: https://github.com/jbmccarty/ppm/blob/d9bd68fcb1fe0ef62fcacf88b5f7d64fd22e9181/LICENSE
 [contacted jason]: https://github.com/jbmccarty/ppm/issues/1
 
-This software creates a joystick device on Linux, whose positions are
-derived from a [PPM] (pulse-position modulation) signal with up to 8 channels on
-the default ALSA device on Linux.
+This software creates a joystick device on Linux, whose positions are derived
+from a [PPM] (pulse-position modulation) signal with up to 8 channels on the
+default ALSA device on Linux. Ppmjoy allows you to map axes and buttons on your
+transmitter to Linux input axes and buttons.
+
+[PPM]: https://en.wikipedia.org/wiki/Pulse-position_modulation
 
 The resulting device will be available as a joystick device
 (`/dev/input/js<N>`) and as an input device (`/dev/input/event<N>`). For
 testing the behavior, use the `evtest` program, available from
 https://cgit.freedesktop.org/evtest (and probably already packaged in your
 distribution).
-
-[PPM]: https://en.wikipedia.org/wiki/Pulse-position_modulation
 
 ## Usage
 
@@ -32,11 +33,11 @@ ppmjoy: usage: ppmjoy [--device|-d alsa_device] [--config|-f ppmjoy_config]
 ### Options
 
 - `--device/-d` -- specify the ALSA device from which to read the PPM input.
-E.g. `-d hw:2`.
+  E.g. `-d hw:2`.
 
 - `--config/-f` -- specify the file from which to read the `ppmjoy`
-configuration. This will default to the value of the `PPMJOY_CONFIG`
-environment variable, or if that is not set to `~/.config/ppmjoy.toml`.
+  configuration. This will default to the value of the `PPMJOY_CONFIG`
+  environment variable, or if that is not set to `~/.config/ppmjoy.toml`.
 
 - `--monitor|-m` -- live output of channel values.
 
@@ -76,7 +77,9 @@ An `axis` controls maps the channel value directly to the named axis.
 
 ### Button
 
-A `button` control maps the channel value to button press/release events. This is good for momentary switches on your transmitter. For example, I use the following configuration to map a momentary switch to event `BTN_3`, which I use to toggle the viewpoint in Liftoff:
+A `button` control maps the channel value to button press/release events. This is good for momentary switches on your transmitter. For example, I use the following configuration to map a momentary switch to event `BTN_3`, which I use to toggle the viewpoint in [Liftoff]:
+
+[liftoff]: https://www.liftoff-game.com/
 
 ```toml
 # viewpoint
@@ -86,8 +89,8 @@ code = "BTN_3"
 threshold = 250
 ```
 
-When the channel values becomes greater than 250, this generates a button press event. When it falls below 250, this triggers a button release.
-
+When the channel values becomes greater than 250, this generates a button press
+event. When it falls below 250, this triggers a button release.
 
 ### Multi
 
@@ -105,11 +108,11 @@ hysteresis = 10
 
 The values produced by the channel mapped to this button are approximately 188 in position, 288 in position 2, and 388 in position 3. I have set the thresholds slightly below those values in case there is any jitter on the channel. With the above configuration, moving the switch into position will generate button press and button release events for `BTN_5`. When moving the switch into the center position, it will generate press and release events for `BTN_6`, etc. This allows me to set up Liftoff with the following control mapping:
 
-| Action              | Button   |
-| ------------------- | -------- |
-| Toggle LEVEL mode   | Button5  |
-| Toggle ACRO mode    | Button6  |
-| Toggle Horizon mode | Button7  |
+| Action              | Button  |
+| ------------------- | ------- |
+| Toggle LEVEL mode   | Button5 |
+| Toggle ACRO mode    | Button6 |
+| Toggle Horizon mode | Button7 |
 
 A `multi` control can have up to 4 positions. In this example I'm configuring a multi-position switch, but you could just as easily use this technique to map a dial to up to 4 different buttons.
 
@@ -136,25 +139,22 @@ The program needs permission to read from the ALSA device, and to create [uinput
 
 1. Many distributions provide an `audio` group with appropriate permissions on
    sound devices. There's a good chance you're already a member of that group,
-since access to sound devices is required for things like watching cat videos
-on YouTube.
+   since access to sound devices is required for things like watching cat videos
+   on YouTube.
 
 1. `/dev/uinput` often defaults to `root`-only access. You can create [udev]
    rules to change the group and permissions of `/dev/uinput`. You can find
-example rules in the file [ppmjoy.rules](ppmjoy.rules) that will make
-`/dev/uinput` writeable by group `input` (this group must of course exist on
-your system). Install this file in  `/etc/udev/rules.d/99-ppmjoy.rules`, and
-then run:
+   example rules in the file [ppmjoy.rules](ppmjoy.rules) that will make
+   `/dev/uinput` writeable by group `input` (this group must of course exist on
+   your system). Install this file in `/etc/udev/rules.d/99-ppmjoy.rules`, and
+   then run:
 
-    [udev]: https://www.freedesktop.org/software/systemd/man/latest/udev.html
-
-    ```
-    udevadm control --reload
-    udevadm trigger
-    ```
+   ```
+   udevadm control --reload
+   udevadm trigger
+   ```
 
 1. You can run `ppmjoy` as root, but why would you do that when there are better options available?
-
 
 ## License
 
