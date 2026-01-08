@@ -1,0 +1,56 @@
+name: Test
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: true
+
+      - name: install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get -y install libasound2-dev lcov
+
+      - name: test
+        run: |
+          set +e -o pipefail
+          make coverage-text | tee buildoutput
+          testrc=$?
+
+          (
+          cat <<'EOF'
+          ## Test results
+
+          ```
+          EOF
+
+          grep -E '^===|OK|FAIL|Tests.*Failures' buildoutput
+
+          cat <<'EOF'
+          ```
+          EOF
+          ) > $GITHUB_STEP_SUMMARY
+
+          if [ -f coverage/coverage.txt ]; then
+          (
+          cat <<'EOF'
+          ## Test coverage
+
+          ```
+          EOF
+          cat coverage/coverage.txt
+          cat <<'EOF'
+          ```
+          EOF
+          ) >> $GITHUB_STEP_SUMMARY
+          fi
+
+          exit $testrc

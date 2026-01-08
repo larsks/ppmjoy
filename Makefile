@@ -29,6 +29,7 @@ all: $(EXE)
 
 test: $(TESTS)
 	@for test in $(TESTS); do \
+		echo "=== $$test ==="; \
 		$$test || exit 1; \
 	done
 
@@ -61,6 +62,7 @@ $(COVERAGE_TESTS): $(COVERAGE_OBJS) $(COVERAGE_TEST_EXTRA_OBJS)
 coverage-run: $(COVERAGE_TESTS)
 	@echo "Running tests with coverage instrumentation..."
 	@for test in $(COVERAGE_TESTS); do \
+		echo "=== $$test ==="; \
 		$$test || exit 1; \
 	done
 
@@ -74,12 +76,18 @@ coverage-report: coverage-run
 	done
 	@mv *.gcov $(COVERAGE_DIR)/report/ 2>/dev/null || true
 
-# Alternative: HTML coverage report using lcov (if installed)
-coverage-html: coverage-run
-	@echo "Generating HTML coverage report with lcov..."
+$(COVERAGE_DIR)/coverage_filtered.info: coverage-run
 	@mkdir -p $(COVERAGE_DIR)
 	@lcov --capture --directory $(COVERAGE_DIR) --output-file $(COVERAGE_DIR)/coverage.info --quiet
 	@lcov --remove $(COVERAGE_DIR)/coverage.info '*/vendor/*' '*/tests/*' --output-file $(COVERAGE_DIR)/coverage_filtered.info --quiet --ignore-errors unused
+
+$(COVERAGE_DIR)/coverage.txt: coverage-run $(COVERAGE_DIR)/coverage_filtered.info
+	@lcov --list $(COVERAGE_DIR)/coverage_filtered.info > $@ || { rm -f $@; exit 1; }
+
+coverage-text: $(COVERAGE_DIR)/coverage.txt
+
+coverage-html: coverage-run $(COVERAGE_DIR)/coverage_filtered.info
+	@echo "Generating HTML coverage report with lcov..."
 	@genhtml $(COVERAGE_DIR)/coverage_filtered.info --output-directory $(COVERAGE_DIR)/html --quiet --ignore-errors source
 	@echo "HTML coverage report generated at $(COVERAGE_DIR)/html/index.html"
 	@echo "Open with: xdg-open $(COVERAGE_DIR)/html/index.html"
