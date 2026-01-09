@@ -1,6 +1,6 @@
 #include "config.h"
-#include "toml.h"
 #include "must.h"
+#include "toml.h"
 #include <errno.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -40,72 +40,7 @@ typedef struct {
   int value;
 } code_map_t;
 
-// Axis codes from linux/input.h
-static const code_map_t axis_codes[] = {
-    {"ABS_X", ABS_X},
-    {"ABS_Y", ABS_Y},
-    {"ABS_Z", ABS_Z},
-    {"ABS_RX", ABS_RX},
-    {"ABS_RY", ABS_RY},
-    {"ABS_RZ", ABS_RZ},
-    {"ABS_THROTTLE", ABS_THROTTLE},
-    {"ABS_RUDDER", ABS_RUDDER},
-    {"ABS_WHEEL", ABS_WHEEL},
-    {"ABS_GAS", ABS_GAS},
-    {"ABS_BRAKE", ABS_BRAKE},
-    {"ABS_HAT0X", ABS_HAT0X},
-    {"ABS_HAT0Y", ABS_HAT0Y},
-    {"ABS_HAT1X", ABS_HAT1X},
-    {"ABS_HAT1Y", ABS_HAT1Y},
-    {"ABS_HAT2X", ABS_HAT2X},
-    {"ABS_HAT2Y", ABS_HAT2Y},
-    {"ABS_HAT3X", ABS_HAT3X},
-    {"ABS_HAT3Y", ABS_HAT3Y},
-    {NULL, 0},
-};
-
-// Button codes from linux/input.h
-static const code_map_t button_codes[] = {
-    {"BTN_0", BTN_0},
-    {"BTN_1", BTN_1},
-    {"BTN_2", BTN_2},
-    {"BTN_3", BTN_3},
-    {"BTN_4", BTN_4},
-    {"BTN_5", BTN_5},
-    {"BTN_6", BTN_6},
-    {"BTN_7", BTN_7},
-    {"BTN_8", BTN_8},
-    {"BTN_9", BTN_9},
-    {"BTN_TRIGGER", BTN_TRIGGER},
-    {"BTN_THUMB", BTN_THUMB},
-    {"BTN_THUMB2", BTN_THUMB2},
-    {"BTN_TOP", BTN_TOP},
-    {"BTN_TOP2", BTN_TOP2},
-    {"BTN_PINKIE", BTN_PINKIE},
-    {"BTN_BASE", BTN_BASE},
-    {"BTN_BASE2", BTN_BASE2},
-    {"BTN_BASE3", BTN_BASE3},
-    {"BTN_BASE4", BTN_BASE4},
-    {"BTN_BASE5", BTN_BASE5},
-    {"BTN_BASE6", BTN_BASE6},
-    {"BTN_DEAD", BTN_DEAD},
-    {"BTN_A", BTN_A},
-    {"BTN_B", BTN_B},
-    {"BTN_C", BTN_C},
-    {"BTN_X", BTN_X},
-    {"BTN_Y", BTN_Y},
-    {"BTN_Z", BTN_Z},
-    {"BTN_TL", BTN_TL},
-    {"BTN_TR", BTN_TR},
-    {"BTN_TL2", BTN_TL2},
-    {"BTN_TR2", BTN_TR2},
-    {"BTN_SELECT", BTN_SELECT},
-    {"BTN_START", BTN_START},
-    {"BTN_MODE", BTN_MODE},
-    {"BTN_THUMBL", BTN_THUMBL},
-    {"BTN_THUMBR", BTN_THUMBR},
-    {NULL, 0},
-};
+#include "keys.h"
 
 // Lookup a code by name in a code map
 // Returns -1 on failure, code value on success
@@ -286,8 +221,8 @@ static int parse_multi_channel(toml_table_t *tbl, channel *out) {
 
     int code = lookup_code(item.u.s, button_codes);
     if (code == -1) {
-      set_config_error("unknown button code '%.100s' in codes[%d]",
-                       item.u.s, i);
+      set_config_error("unknown button code '%.100s' in codes[%d]", item.u.s,
+                       i);
       free(item.u.s);
       return -1;
     }

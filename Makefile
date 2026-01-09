@@ -101,10 +101,13 @@ clean:
 	rm -f *.gcov *.gcda *.gcno
 
 realclean: clean
-	rm -f makefile.deps
+	rm -f makefile.deps keys.h
 
-makefile.deps: $(SRCS)
+makefile.deps: $(SRCS) keys.h
 	$(CC) -MM $(CPPFLAGS) $(SRCS) $(TEST_SRCS) > $@ || { rm -f $@; exit 1; }
+
+keys.h: make_keys_h.sh
+	sh $< > $@ || { rm -f $@; exit 1; }
 
 include makefile.deps
 
