@@ -131,6 +131,16 @@ static int should_auto_release(struct timespec *press_time) {
   return elapsed_ms >= BUTTON_RELEASE_TIME_MS;
 }
 
+// Send a synchronization event to flush the input buffer
+void send_sync_event(int uinput_fd) {
+  struct input_event sync_ev;
+  memset(&sync_ev, 0, sizeof(sync_ev));
+  sync_ev.type = EV_SYN;
+  sync_ev.code = SYN_REPORT;
+  sync_ev.value = 0;
+  write(uinput_fd, &sync_ev, sizeof(sync_ev));
+}
+
 // Send a button release event. This is used to generate synthetic press/release
 // pairs for "multi" type controls.
 static void send_release_event(int uinput, int button_code) {
@@ -140,6 +150,7 @@ static void send_release_event(int uinput, int button_code) {
   ev.code = button_code;
   ev.value = 0;
   write(uinput, &ev, sizeof(ev));
+  send_sync_event(uinput);
 }
 
 // Determine which position a value maps to for a multi-position switch

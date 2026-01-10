@@ -59,4 +59,7 @@ int generate_channel_event(channel *ch, int value, int channel_idx,
 // Returns 0 on success, -1 if sync lost
 int validate_frame_end(alsa_state_t *state);
 
+// Send synchronization event to flush input buffer
+void send_sync_event(int uinput_fd);
+
 #endif // _EVENT_H

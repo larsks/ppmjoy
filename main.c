@@ -309,9 +309,11 @@ static void display_channel_event(int channel_idx, channel *ch, int value,
 
 static void run_event_loop(device_context_t *devices) {
   int last_position[num_channels];
+  int last_value[num_channels];
   button_state_t button_states[num_channels];
 
   init_channel_state(num_channels, last_position, button_states);
+  memset(last_value, 0, sizeof(last_value));
 
   logmsg(LOG_INFO, "waiting for initial sync");
 
@@ -341,6 +343,12 @@ static void run_event_loop(device_context_t *devices) {
         break; // restart channel loop after sync
       }
 
+      if (abs(value - last_value[i]) < 2) {
+        value = last_value[i];
+      } else {
+        last_value[i] = value;
+      }
+
       // Generate event from pulse value
       int should_send =
           generate_channel_event(&channels[i], value, i, &button_states[i],
@@ -358,8 +366,12 @@ static void run_event_loop(device_context_t *devices) {
       }
     }
 
+    // Send sync event to flush input events for this frame
+    send_sync_event(devices->uinput_fd);
+
     // Validate frame end
     if (validate_frame_end(&devices->alsa_state) < 0) {
+      logmsg(LOG_DEBUG, "lost sync");
       wait_for_sync(&devices->alsa_state);
     }
   }
@@ -407,10 +419,10 @@ int main(int argc, char *argv[]) {
       exit(1);
     } else {
       // Soft error - config file doesn't exist, use defaults
-      logmsg(
-          LOG_WARNING,
-          "config file %s does not exist; using default channel configuration",
-          app_config.config_path);
+      logmsg(LOG_WARNING,
+             "config file %s does not exist; using default channel "
+             "configuration",
+             app_config.config_path);
       channels = default_channels;
       num_channels = ARRAY_SIZE(default_channels);
     }
