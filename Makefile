@@ -2,6 +2,9 @@ EXE = ppmjoy
 SRCS = main.c must.c config.c vendor/tomlc99/toml.c event.c log.c args.c
 OBJS = $(SRCS:.c=.o)
 
+PPMDIAG_SRCS = ppmdiag.c event.c log.c must.c
+PPMDIAG_OBJS = $(PPMDIAG_SRCS:.c=.o)
+
 CPPFLAGS=-I. -Ivendor/tomlc99 -Ivendor/unity/src -Ivendor/termcolor-c/include
 CFLAGS=-Wall -g
 LIBS=-lasound
@@ -25,7 +28,7 @@ COVERAGE_TESTS = $(patsubst tests/%,$(COVERAGE_DIR)/tests/%,$(TESTS))
 
 COMPILE =	$(CC) $(LDFLAGS) -o $@ $^ $(LIBS)
 
-all: $(EXE)
+all: $(EXE) ppmdiag
 
 test: $(TESTS)
 	@for test in $(TESTS); do \
@@ -41,6 +44,9 @@ $(TESTS): $(filter-out main.o, $(OBJS)) $(TEST_EXTRA_OBJS)
 	$(COMPILE)
 
 $(EXE): $(OBJS)
+	$(COMPILE)
+
+ppmdiag: $(PPMDIAG_OBJS)
 	$(COMPILE)
 
 # Coverage compilation rules - build everything in coverage/ subdir
@@ -96,6 +102,7 @@ coverage: coverage-report
 
 clean:
 	rm -f $(OBJS) $(EXE)
+	rm -f $(PPMDIAG_OBJS) ppmdiag
 	rm -f $(TEST_OBJS) $(TEST_EXTRA_OBJS) $(TESTS)
 	rm -rf $(COVERAGE_DIR)
 	rm -f *.gcov *.gcda *.gcno
