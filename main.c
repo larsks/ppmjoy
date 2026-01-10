@@ -58,98 +58,6 @@ static channel default_channels[] = {
 };
 app_config_t app_config;
 
-void destroy_alsa(alsa_state_t *state) {
-  if (state->buffer)
-    free(state->buffer);
-
-  if (state->handle)
-    snd_pcm_close(state->handle);
-}
-
-int init_alsa(alsa_state_t *state, char *dev, unsigned int rate,
-              unsigned int period, unsigned int sync_length,
-              int16_t threshhold) {
-  int ret = 0;
-  int err;
-  snd_pcm_hw_params_t *hw_params = 0;
-
-  logmsg(LOG_INFO, "opening alsa device %s", dev);
-
-  if ((err = snd_pcm_open(&state->handle, dev, SND_PCM_STREAM_CAPTURE, 0)) <
-      0) {
-    logmsg(LOG_ERROR, "failed to open audio device %s (%s)", dev,
-           snd_strerror(err));
-    goto error;
-  }
-
-  if ((err = snd_pcm_hw_params_malloc(&hw_params)) < 0) {
-    logmsg(LOG_ERROR, "failed to allocate hardware parameter structure (%s)",
-           snd_strerror(err));
-    goto error;
-  }
-
-  if ((err = snd_pcm_hw_params_any(state->handle, hw_params)) < 0) {
-    logmsg(LOG_ERROR, "failed to initialize hardware parameter structure (%s)",
-           snd_strerror(err));
-    goto error;
-  }
-
-  if ((err = snd_pcm_hw_params_set_access(state->handle, hw_params,
-                                          SND_PCM_ACCESS_RW_INTERLEAVED)) < 0) {
-    logmsg(LOG_ERROR, "failed to set access type (%s)", snd_strerror(err));
-    goto error;
-  }
-
-  if ((err = snd_pcm_hw_params_set_format(state->handle, hw_params,
-                                          SND_PCM_FORMAT_S16_LE)) < 0) {
-    logmsg(LOG_ERROR, "failed to set sample format (%s)", snd_strerror(err));
-    goto error;
-  }
-
-  if ((err = snd_pcm_hw_params_set_rate_near(state->handle, hw_params, &rate,
-                                             0)) < 0) {
-    logmsg(LOG_ERROR, "failed to set sample rate (%s)", snd_strerror(err));
-    goto error;
-  }
-
-  if ((err = snd_pcm_hw_params_set_channels(state->handle, hw_params, 2)) < 0) {
-    logmsg(LOG_ERROR, "failed to set channel count (%s)", snd_strerror(err));
-    goto error;
-  }
-
-  if ((err = snd_pcm_hw_params(state->handle, hw_params)) < 0) {
-    logmsg(LOG_ERROR, "failed to set parameters (%s)", snd_strerror(err));
-    goto error;
-  }
-
-  if ((err = snd_pcm_prepare(state->handle)) < 0) {
-    logmsg(LOG_ERROR, "failed to prepare audio interface for use (%s)",
-           snd_strerror(err));
-    goto error;
-  }
-
-  state->samples = (rate * period + 999) / 1000;
-  state->params.rate = rate;
-  state->params.sync_min = (sync_length * rate + 999) / 1000;
-  state->params.sync_max = 2 * state->samples;
-  state->params.threshhold = threshhold;
-  state->buffer =
-      malloc(state->samples * sizeof(int16_t[2])); // one period worth of buffer
-  state->offset = state->samples; // indicate that buffer contains no data
-  init_pulse(&state->pulse);
-
-  goto cleanup;
-
-error:
-  ret = 1;
-  destroy_alsa(state);
-  exit(1);
-
-cleanup:
-  snd_pcm_hw_params_free(hw_params);
-  return ret;
-}
-
 // Used to produce a list of symbolic key names
 // in the --monitor mode output.
 static char *list_multi_keys(channel *c) {
@@ -371,7 +279,6 @@ static void run_event_loop(device_context_t *devices) {
 
     // Validate frame end
     if (validate_frame_end(&devices->alsa_state) < 0) {
-      logmsg(LOG_DEBUG, "lost sync");
       wait_for_sync(&devices->alsa_state);
     }
   }

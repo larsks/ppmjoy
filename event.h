@@ -62,4 +62,9 @@ int validate_frame_end(alsa_state_t *state);
 // Send synchronization event to flush input buffer
 void send_sync_event(int uinput_fd);
 
+// ALSA device initialization and cleanup
+int init_alsa(alsa_state_t *state, char *dev, unsigned int rate,
+              unsigned int period, unsigned int sync_length, int16_t threshhold);
+void destroy_alsa(alsa_state_t *state);
+
 #endif // _EVENT_H
