@@ -293,24 +293,16 @@ void test_read_channel_pulse_sync_lost_no_low() {
   cleanup_synthetic_alsa_state(&state);
 }
 
-void test_validate_frame_end_finds_sync() {
+void test_validate_frame_end_no_extra_channels() {
   alsa_state_t state;
   pulse_params_t params = {
       .rate = 44100, .sync_min = 1000, .sync_max = 8820, .threshhold = 1000};
 
-  // Create buffer with extra pulses then SYNC
+  // Create buffer with just SYNC (no extra channels)
   int16_t data[3000][2];
   size_t offset = 0;
 
-  // Extra pulse 1 (HIGH+LOW)
-  for (int i = 0; i < 100; i++) {
-    data[offset++][0] = 2000;
-  }
-  for (int i = 0; i < 50; i++) {
-    data[offset++][0] = 500;
-  }
-
-  // SYNC pulse
+  // SYNC pulse immediately
   for (int i = 0; i < 1500; i++) {
     data[offset++][0] = 500;
   }
@@ -322,7 +314,8 @@ void test_validate_frame_end_finds_sync() {
 
   setup_synthetic_alsa_state(&state, data, 3000, &params);
 
-  int result = validate_frame_end(&state);
+  // configured_channel_count = 4, total_channel_count = 4 (no extra channels)
+  int result = validate_frame_end(&state, 4, 4);
 
   TEST_ASSERT_EQUAL(0, result);
   TEST_ASSERT_EQUAL(SYNC, state.pulse.type);
@@ -330,32 +323,142 @@ void test_validate_frame_end_finds_sync() {
   cleanup_synthetic_alsa_state(&state);
 }
 
-void test_validate_frame_end_safety_limit() {
+void test_validate_frame_end_with_extra_channels() {
   alsa_state_t state;
   pulse_params_t params = {
       .rate = 44100, .sync_min = 1000, .sync_max = 8820, .threshhold = 1000};
 
-  // Create buffer with many short pulses but no SYNC
+  // Create buffer with 2 extra channels then SYNC
   int16_t data[5000][2];
   size_t offset = 0;
 
-  // 25 short pulses (exceeds safety limit of 20)
-  for (int p = 0; p < 25; p++) {
-    for (int i = 0; i < 100; i++) {
-      if (offset < 5000)
-        data[offset++][0] = 2000;
-    }
-    for (int i = 0; i < 50; i++) {
-      if (offset < 5000)
-        data[offset++][0] = 500;
-    }
+  // Extra channel 1 (HIGH+LOW)
+  for (int i = 0; i < 100; i++) {
+    data[offset++][0] = 2000;
+  }
+  for (int i = 0; i < 50; i++) {
+    data[offset++][0] = 500;
+  }
+
+  // Extra channel 2 (HIGH+LOW)
+  for (int i = 0; i < 100; i++) {
+    data[offset++][0] = 2000;
+  }
+  for (int i = 0; i < 50; i++) {
+    data[offset++][0] = 500;
+  }
+
+  // SYNC pulse (continues from the LOW of channel 2, total LOW = 50 + 1500 = 1550)
+  for (int i = 0; i < 1500; i++) {
+    data[offset++][0] = 500;
+  }
+
+  // Fill rest with high
+  while (offset < 5000) {
+    data[offset++][0] = 2000;
   }
 
   setup_synthetic_alsa_state(&state, data, 5000, &params);
 
-  int result = validate_frame_end(&state);
+  // configured_channel_count = 4, total_channel_count = 6 (2 extra channels)
+  int result = validate_frame_end(&state, 4, 6);
 
-  TEST_ASSERT_EQUAL(-1, result); // Should fail due to safety limit
+  TEST_ASSERT_EQUAL(0, result);
+  TEST_ASSERT_EQUAL(SYNC, state.pulse.type);
+
+  cleanup_synthetic_alsa_state(&state);
+}
+
+void test_validate_frame_end_missing_sync() {
+  alsa_state_t state;
+  pulse_params_t params = {
+      .rate = 44100, .sync_min = 1000, .sync_max = 8820, .threshhold = 1000};
+
+  // Create buffer with correct number of extra channels but no SYNC
+  // Instead, many regular pulses (ensure buffer is large enough for safety limit)
+  int16_t data[10000][2];
+  size_t offset = 0;
+
+  // Extra channel 1 (HIGH+LOW)
+  for (int i = 0; i < 100; i++) {
+    data[offset++][0] = 2000;
+  }
+  for (int i = 0; i < 50; i++) {
+    data[offset++][0] = 500;
+  }
+
+  // HIGH transition (to separate LOW from next pulse)
+  for (int i = 0; i < 50; i++) {
+    data[offset++][0] = 2000;
+  }
+
+  // Regular LOW pulse instead of SYNC (too short to be SYNC)
+  for (int i = 0; i < 50; i++) {
+    data[offset++][0] = 500;
+  }
+
+  // Fill rest with alternating pulses to prevent buffer exhaustion
+  while (offset < 10000) {
+    for (int i = 0; i < 100 && offset < 10000; i++) {
+      data[offset++][0] = 2000;
+    }
+    for (int i = 0; i < 50 && offset < 10000; i++) {
+      data[offset++][0] = 500;
+    }
+  }
+
+  setup_synthetic_alsa_state(&state, data, 10000, &params);
+
+  // configured_channel_count = 4, total_channel_count = 5 (1 extra channel)
+  int result = validate_frame_end(&state, 4, 5);
+
+  TEST_ASSERT_EQUAL(-1, result); // Should fail - no SYNC where expected
+
+  cleanup_synthetic_alsa_state(&state);
+}
+
+void test_validate_frame_end_wrong_pulse_type() {
+  alsa_state_t state;
+  pulse_params_t params = {
+      .rate = 44100, .sync_min = 1000, .sync_max = 8820, .threshhold = 1000};
+
+  // Create buffer with wrong pulse sequence for extra channel
+  // Provide enough data so we don't run out when hitting safety limit
+  int16_t data[10000][2];
+  size_t offset = 0;
+
+  // Extra channel HIGH pulse
+  for (int i = 0; i < 100; i++) {
+    data[offset++][0] = 2000;
+  }
+
+  // LOW transition (to end the HIGH pulse)
+  for (int i = 0; i < 50; i++) {
+    data[offset++][0] = 500;
+  }
+
+  // Another HIGH pulse where we expect SYNC (wrong)
+  for (int i = 0; i < 100; i++) {
+    data[offset++][0] = 2000;
+  }
+
+  // Fill rest with alternating pulses
+  while (offset < 10000) {
+    for (int i = 0; i < 50 && offset < 10000; i++) {
+      data[offset++][0] = 500;
+    }
+    for (int i = 0; i < 100 && offset < 10000; i++) {
+      data[offset++][0] = 2000;
+    }
+  }
+
+  setup_synthetic_alsa_state(&state, data, 10000, &params);
+
+  // configured_channel_count = 4, total_channel_count = 5 (1 extra channel)
+  // After reading the extra channel (HIGH+LOW), we expect SYNC but get HIGH
+  int result = validate_frame_end(&state, 4, 5);
+
+  TEST_ASSERT_EQUAL(-1, result); // Should fail - wrong pulse type (HIGH instead of SYNC)
 
   cleanup_synthetic_alsa_state(&state);
 }
@@ -767,8 +870,10 @@ int main(void) {
   RUN_TEST(test_read_channel_pulse_success);
   RUN_TEST(test_read_channel_pulse_sync_lost_no_high);
   RUN_TEST(test_read_channel_pulse_sync_lost_no_low);
-  RUN_TEST(test_validate_frame_end_finds_sync);
-  RUN_TEST(test_validate_frame_end_safety_limit);
+  RUN_TEST(test_validate_frame_end_no_extra_channels);
+  RUN_TEST(test_validate_frame_end_with_extra_channels);
+  RUN_TEST(test_validate_frame_end_missing_sync);
+  RUN_TEST(test_validate_frame_end_wrong_pulse_type);
 
   // Event generation
   RUN_TEST(test_send_sync_event);

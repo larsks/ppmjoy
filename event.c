@@ -315,10 +315,16 @@ int generate_channel_event(channel *ch, int value, int channel_idx,
 
 // Validate frame end (skip to next sync pulse)
 // Returns 0 on success, -1 if sync lost
-// This handles PPM signals with more channels than configured by reading
-// and discarding pulses until we find the SYNC that starts the next frame
-int validate_frame_end(alsa_state_t *state) {
-  int max_pulses = 20; // Safety limit to prevent infinite loop
+// Reads pulses from extra channels until SYNC is found
+// In PPM signals, the last channel's LOW pulse often merges with SYNC,
+// so we read pulses until we find SYNC rather than expecting an exact count
+int validate_frame_end(alsa_state_t *state, int configured_channel_count,
+                       int total_channel_count) {
+  int extra_channels = total_channel_count - configured_channel_count;
+
+  // Safety limit: 2 pulses per channel (HIGH + LOW) plus a small buffer
+  // We might read fewer pulses if the last channel's LOW merges with SYNC
+  int max_pulses = (2 * extra_channels) + 2;
   int pulses_read = 0;
 
   // Read pulses until we find SYNC (which starts the next frame)
@@ -328,16 +334,18 @@ int validate_frame_end(alsa_state_t *state) {
 
     if (state->pulse.type == SYNC) {
       // Found the SYNC pulse that starts the next frame
-      logmsg(LOG_DEBUG, "Frame end: found SYNC after reading %d extra pulse(s)",
-             pulses_read);
+      logmsg(LOG_DEBUG,
+             "Frame end: found SYNC after reading %d pulse(s) from %d extra channel(s)",
+             pulses_read, extra_channels);
       return 0;
     }
   }
 
   // Safety limit reached - something is wrong
   logmsg(LOG_WARNING,
-         "Frame end validation failed: no SYNC found after %d pulses",
-         pulses_read);
+         "Frame validation failed: no SYNC found after %d pulses "
+         "(expected %d extra channels, total_channel_count=%d)",
+         pulses_read, extra_channels, total_channel_count);
   return -1;
 }
 

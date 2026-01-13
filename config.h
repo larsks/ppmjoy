@@ -23,9 +23,12 @@ typedef struct {
 
 // Main configuration loading function
 // Returns: pointer to dynamically allocated channel array, or NULL on error
-// Sets *num_channels to the number of channels loaded
+// Sets *configured_channel_count to the number of channels loaded
+// Sets *total_channel_count to the total number of channels in the PPM signal
+//   (defaults to configured_channel_count if not specified in config)
 // Note: Not thread-safe due to global error state
-channel *load_config(const char *config_path, int *num_channels);
+channel *load_config(const char *config_path, int *configured_channel_count,
+                     int *total_channel_count);
 
 // Get the last error message from load_config
 // Returns: NULL if no error, or error message string

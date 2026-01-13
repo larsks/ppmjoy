@@ -1,6 +1,14 @@
 # This is the configuration I use with Liftoff and my Turnigy 9XR Pro
 # transmitter. The transmitter is configured with channels in AETR order.
 
+# Total number of channels transmitted by your PPM transmitter.
+# If your transmitter sends more channels than you have configured below,
+# set this to the total number of channels in the PPM signal.
+# For example, if your TX sends 8 channels but you only want to use 6:
+#   total_channel_count = 8
+# If omitted, defaults to the number of configured channels below.
+# total_channel_count = 8
+
 # Channel 1: Roll (Aileron)
 [[channels]]
 type = "axis"

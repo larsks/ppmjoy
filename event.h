@@ -57,7 +57,8 @@ int generate_channel_event(channel *ch, int value, int channel_idx,
 
 // Validate frame end (trailing high + sync pulses)
 // Returns 0 on success, -1 if sync lost
-int validate_frame_end(alsa_state_t *state);
+int validate_frame_end(alsa_state_t *state, int configured_channel_count,
+                       int total_channel_count);
 
 // Send synchronization event to flush input buffer
 void send_sync_event(int uinput_fd);

@@ -44,7 +44,8 @@ typedef struct {
 } device_context_t;
 
 channel *channels = NULL;
-int num_channels = 0;
+int configured_channel_count = 0;
+int total_channel_count = 0;
 
 // This is the default mapping of channels to input events,
 // used if the configuration file does not exist.
@@ -95,7 +96,7 @@ int init_uinput(alsa_state_t *state) {
   MUST(uinput_fd = open("/dev/uinput", O_WRONLY | O_NONBLOCK),
        "failed to open /dev/uinput");
 
-  for (int i = 0; i < num_channels; i++) {
+  for (int i = 0; i < configured_channel_count; i++) {
     switch (channels[i].type) {
     case CTL_AXIS:
       logmsg(LOG_DEBUG, "  channel %i -> %7s %s", i, "axis",
@@ -172,9 +173,9 @@ const char *controller2str(int type) {
   return name;
 }
 
-static void init_channel_state(int num_channels, int last_position[],
+static void init_channel_state(int configured_channel_count, int last_position[],
                                button_state_t button_states[]) {
-  for (int i = 0; i < num_channels; i++) {
+  for (int i = 0; i < configured_channel_count; i++) {
     if (channels[i].type == CTL_MULTI) {
       last_position[i] = -1; // indicates uninitialized state
     } else {
@@ -182,7 +183,7 @@ static void init_channel_state(int num_channels, int last_position[],
     }
   }
 
-  for (int i = 0; i < num_channels; i++) {
+  for (int i = 0; i < configured_channel_count; i++) {
     button_states[i].pressed_button_code = -1;
   }
 }
@@ -216,11 +217,11 @@ static void display_channel_event(int channel_idx, channel *ch, int value,
 }
 
 static void run_event_loop(device_context_t *devices) {
-  int last_position[num_channels];
-  int last_value[num_channels];
-  button_state_t button_states[num_channels];
+  int last_position[configured_channel_count];
+  int last_value[configured_channel_count];
+  button_state_t button_states[configured_channel_count];
 
-  init_channel_state(num_channels, last_position, button_states);
+  init_channel_state(configured_channel_count, last_position, button_states);
   memset(last_value, 0, sizeof(last_value));
 
   logmsg(LOG_INFO, "waiting for initial sync");
@@ -236,11 +237,11 @@ static void run_event_loop(device_context_t *devices) {
   // Main processing loop
   for (;;) {
     // Check for auto-release timeouts
-    check_auto_release(devices->uinput_fd, channels, num_channels,
+    check_auto_release(devices->uinput_fd, channels, configured_channel_count,
                        button_states);
 
     // Process all channels in this frame
-    for (int i = 0; i < num_channels; i++) {
+    for (int i = 0; i < configured_channel_count; i++) {
       struct input_event ev;
       int value;
 
@@ -278,7 +279,8 @@ static void run_event_loop(device_context_t *devices) {
     send_sync_event(devices->uinput_fd);
 
     // Validate frame end
-    if (validate_frame_end(&devices->alsa_state) < 0) {
+    if (validate_frame_end(&devices->alsa_state, configured_channel_count,
+                          total_channel_count) < 0) {
       wait_for_sync(&devices->alsa_state);
     }
   }
@@ -317,7 +319,8 @@ int main(int argc, char *argv[]) {
 
   // Load configuration
   logmsg(LOG_INFO, "loading configuration from %s", app_config.config_path);
-  channels = load_config(app_config.config_path, &num_channels);
+  channels = load_config(app_config.config_path, &configured_channel_count,
+                        &total_channel_count);
   if (!channels) {
     const char *error = load_config_error();
     if (error) {
@@ -331,9 +334,13 @@ int main(int argc, char *argv[]) {
              "configuration",
              app_config.config_path);
       channels = default_channels;
-      num_channels = ARRAY_SIZE(default_channels);
+      configured_channel_count = ARRAY_SIZE(default_channels);
+      total_channel_count = ARRAY_SIZE(default_channels);
     }
   }
+
+  logmsg(LOG_INFO, "Configured %d channels, PPM signal has %d total channels",
+         configured_channel_count, total_channel_count);
 
   // Initialize devices
   device_context_t devices = init_devices(app_config.alsa_device);

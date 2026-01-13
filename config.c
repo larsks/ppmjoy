@@ -242,10 +242,11 @@ static int parse_multi_channel(toml_table_t *tbl, channel *out) {
 }
 
 // Main configuration loading function
-channel *load_config(const char *config_path, int *num_channels) {
+channel *load_config(const char *config_path, int *configured_channel_count,
+                     int *total_channel_count) {
   clear_config_error();
 
-  if (!config_path || !num_channels) {
+  if (!config_path || !configured_channel_count || !total_channel_count) {
     return NULL;
   }
 
@@ -350,7 +351,30 @@ channel *load_config(const char *config_path, int *num_channels) {
     }
   }
 
-  *num_channels = count;
+  // Parse optional total_channel_count parameter
+  toml_datum_t total_count_datum = toml_int_in(root, "total_channel_count");
+  int total_ch_count;
+
+  if (total_count_datum.ok) {
+    total_ch_count = total_count_datum.u.i;
+
+    // Validate: total_channel_count must be >= number of configured channels
+    if (total_ch_count < count) {
+      set_config_error(
+          "total_channel_count (%d) cannot be less than number of configured "
+          "channels (%d)",
+          total_ch_count, count);
+      free(channels);
+      toml_free(root);
+      return NULL;
+    }
+  } else {
+    // Default to number of configured channels (backward compatible)
+    total_ch_count = count;
+  }
+
+  *configured_channel_count = count;
+  *total_channel_count = total_ch_count;
   toml_free(root);
   return channels;
 }

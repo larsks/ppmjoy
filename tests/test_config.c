@@ -51,13 +51,15 @@ void test_load_valid_config(void) {
                      "[[channels]]\ntype = \"axis\"\ncode = \"ABS_RY\"\n");
 
   channel *channels;
-  int num_channels;
+  int configured_channel_count, total_channel_count;
 
-  channels = load_config(cfgFile, &num_channels);
+  channels = load_config(cfgFile, &configured_channel_count,
+                        &total_channel_count);
   TEST_ASSERT_NOT_NULL(channels);
-  TEST_ASSERT_EQUAL_INT(4, num_channels);
+  TEST_ASSERT_EQUAL_INT(4, configured_channel_count);
+  TEST_ASSERT_EQUAL_INT(4, total_channel_count);
 
-  for (int i = 0; i < num_channels; i++) {
+  for (int i = 0; i < configured_channel_count; i++) {
     TEST_ASSERT_EQUAL_INT(CTL_AXIS, channels[i].type);
   }
 
@@ -69,9 +71,10 @@ void test_load_valid_config(void) {
 
 void test_load_missing_config(void) {
   channel *channels;
-  int num_channels;
+  int configured_channel_count, total_channel_count;
 
-  channels = load_config("/does-not-exist", &num_channels);
+  channels = load_config("/does-not-exist", &configured_channel_count,
+                        &total_channel_count);
   TEST_ASSERT_NULL(channels);
 }
 
@@ -81,9 +84,10 @@ void test_missing_channels_field(void) {
   writeFile(path, "foo = \"bar\"");
 
   channel *channels;
-  int num_channels;
+  int configured_channel_count, total_channel_count;
 
-  channels = load_config(path, &num_channels);
+  channels = load_config(path, &configured_channel_count,
+                        &total_channel_count);
   TEST_ASSERT_NULL(channels);
   const char *error = load_config_error();
   TEST_ASSERT_NOT_NULL(error);
@@ -96,9 +100,10 @@ void test_channels_not_array(void) {
   writeFile(path, "channels = \"not-an-array\"");
 
   channel *channels;
-  int num_channels;
+  int configured_channel_count, total_channel_count;
 
-  channels = load_config(path, &num_channels);
+  channels = load_config(path, &configured_channel_count,
+                        &total_channel_count);
   TEST_ASSERT_NULL(channels);
   const char *error = load_config_error();
   TEST_ASSERT_NOT_NULL(error);
@@ -111,9 +116,10 @@ void test_empty_channels_array(void) {
   writeFile(path, "channels = []");
 
   channel *channels;
-  int num_channels;
+  int configured_channel_count, total_channel_count;
 
-  channels = load_config(path, &num_channels);
+  channels = load_config(path, &configured_channel_count,
+                        &total_channel_count);
   TEST_ASSERT_NULL(channels);
   const char *error = load_config_error();
   TEST_ASSERT_NOT_NULL(error);
@@ -126,9 +132,10 @@ void test_channel_not_object(void) {
   writeFile(path, "channels = [\"not-an-object\"]");
 
   channel *channels;
-  int num_channels;
+  int configured_channel_count, total_channel_count;
 
-  channels = load_config(path, &num_channels);
+  channels = load_config(path, &configured_channel_count,
+                        &total_channel_count);
   TEST_ASSERT_NULL(channels);
   const char *error = load_config_error();
   TEST_ASSERT_NOT_NULL(error);
@@ -141,9 +148,10 @@ void test_channel_missing_type(void) {
   writeFile(path, "[[channels]]\ncode = \"ABS_X\"");
 
   channel *channels;
-  int num_channels;
+  int configured_channel_count, total_channel_count;
 
-  channels = load_config(path, &num_channels);
+  channels = load_config(path, &configured_channel_count,
+                        &total_channel_count);
   TEST_ASSERT_NULL(channels);
   const char *error = load_config_error();
   TEST_ASSERT_NOT_NULL(error);
@@ -156,9 +164,10 @@ void test_unknown_channel_type(void) {
   writeFile(path, "[[channels]]\ntype = \"invalid\"");
 
   channel *channels;
-  int num_channels;
+  int configured_channel_count, total_channel_count;
 
-  channels = load_config(path, &num_channels);
+  channels = load_config(path, &configured_channel_count,
+                        &total_channel_count);
   TEST_ASSERT_NULL(channels);
   const char *error = load_config_error();
   TEST_ASSERT_NOT_NULL(error);
@@ -171,9 +180,10 @@ void test_axis_missing_code(void) {
   writeFile(path, "[[channels]]\ntype = \"axis\"");
 
   channel *channels;
-  int num_channels;
+  int configured_channel_count, total_channel_count;
 
-  channels = load_config(path, &num_channels);
+  channels = load_config(path, &configured_channel_count,
+                        &total_channel_count);
   TEST_ASSERT_NULL(channels);
   const char *error = load_config_error();
   TEST_ASSERT_NOT_NULL(error);
@@ -186,9 +196,10 @@ void test_axis_invalid_code(void) {
   writeFile(path, "[[channels]]\ntype = \"axis\"\ncode = \"INVALID_CODE\"");
 
   channel *channels;
-  int num_channels;
+  int configured_channel_count, total_channel_count;
 
-  channels = load_config(path, &num_channels);
+  channels = load_config(path, &configured_channel_count,
+                        &total_channel_count);
   TEST_ASSERT_NULL(channels);
   const char *error = load_config_error();
   TEST_ASSERT_NOT_NULL(error);
@@ -202,9 +213,10 @@ void test_button_missing_code(void) {
   writeFile(path, "[[channels]]\ntype = \"button\"\nthreshold = 512");
 
   channel *channels;
-  int num_channels;
+  int configured_channel_count, total_channel_count;
 
-  channels = load_config(path, &num_channels);
+  channels = load_config(path, &configured_channel_count,
+                        &total_channel_count);
   TEST_ASSERT_NULL(channels);
   const char *error = load_config_error();
   TEST_ASSERT_NOT_NULL(error);
@@ -219,9 +231,10 @@ void test_button_invalid_code(void) {
       "[[channels]]\ntype = \"button\"\ncode = \"INVALID\"\nthreshold = 512");
 
   channel *channels;
-  int num_channels;
+  int configured_channel_count, total_channel_count;
 
-  channels = load_config(path, &num_channels);
+  channels = load_config(path, &configured_channel_count,
+                        &total_channel_count);
   TEST_ASSERT_NULL(channels);
   const char *error = load_config_error();
   TEST_ASSERT_NOT_NULL(error);
@@ -235,9 +248,10 @@ void test_button_missing_threshold(void) {
   writeFile(path, "[[channels]]\ntype = \"button\"\ncode = \"BTN_1\"");
 
   channel *channels;
-  int num_channels;
+  int configured_channel_count, total_channel_count;
 
-  channels = load_config(path, &num_channels);
+  channels = load_config(path, &configured_channel_count,
+                        &total_channel_count);
   TEST_ASSERT_NULL(channels);
   const char *error = load_config_error();
   TEST_ASSERT_NOT_NULL(error);
@@ -250,9 +264,10 @@ void test_multi_missing_num_positions(void) {
   writeFile(path, "[[channels]]\ntype = \"multi\"");
 
   channel *channels;
-  int num_channels;
+  int configured_channel_count, total_channel_count;
 
-  channels = load_config(path, &num_channels);
+  channels = load_config(path, &configured_channel_count,
+                        &total_channel_count);
   TEST_ASSERT_NULL(channels);
   const char *error = load_config_error();
   TEST_ASSERT_NOT_NULL(error);
@@ -265,9 +280,10 @@ void test_multi_invalid_num_positions(void) {
   writeFile(path, "[[channels]]\ntype = \"multi\"\nnum_positions = 5");
 
   channel *channels;
-  int num_channels;
+  int configured_channel_count, total_channel_count;
 
-  channels = load_config(path, &num_channels);
+  channels = load_config(path, &configured_channel_count,
+                        &total_channel_count);
   TEST_ASSERT_NULL(channels);
   const char *error = load_config_error();
   TEST_ASSERT_NOT_NULL(error);
@@ -281,9 +297,10 @@ void test_multi_missing_thresholds(void) {
   writeFile(path, "[[channels]]\ntype = \"multi\"\nnum_positions = 2");
 
   channel *channels;
-  int num_channels;
+  int configured_channel_count, total_channel_count;
 
-  channels = load_config(path, &num_channels);
+  channels = load_config(path, &configured_channel_count,
+                        &total_channel_count);
   TEST_ASSERT_NULL(channels);
   const char *error = load_config_error();
   TEST_ASSERT_NOT_NULL(error);
@@ -297,9 +314,10 @@ void test_multi_wrong_threshold_count(void) {
                   "thresholds = [512]");
 
   channel *channels;
-  int num_channels;
+  int configured_channel_count, total_channel_count;
 
-  channels = load_config(path, &num_channels);
+  channels = load_config(path, &configured_channel_count,
+                        &total_channel_count);
   TEST_ASSERT_NULL(channels);
   const char *error = load_config_error();
   TEST_ASSERT_NOT_NULL(error);
@@ -314,9 +332,10 @@ void test_multi_missing_codes(void) {
                   "thresholds = [512]");
 
   channel *channels;
-  int num_channels;
+  int configured_channel_count, total_channel_count;
 
-  channels = load_config(path, &num_channels);
+  channels = load_config(path, &configured_channel_count,
+                        &total_channel_count);
   TEST_ASSERT_NULL(channels);
   const char *error = load_config_error();
   TEST_ASSERT_NOT_NULL(error);
@@ -330,9 +349,10 @@ void test_multi_wrong_codes_count(void) {
                   "thresholds = [512]\ncodes = [\"BTN_1\"]");
 
   channel *channels;
-  int num_channels;
+  int configured_channel_count, total_channel_count;
 
-  channels = load_config(path, &num_channels);
+  channels = load_config(path, &configured_channel_count,
+                        &total_channel_count);
   TEST_ASSERT_NULL(channels);
   const char *error = load_config_error();
   TEST_ASSERT_NOT_NULL(error);
@@ -347,9 +367,10 @@ void test_multi_invalid_code(void) {
                   "thresholds = [512]\ncodes = [\"BTN_1\", \"INVALID\"]");
 
   channel *channels;
-  int num_channels;
+  int configured_channel_count, total_channel_count;
 
-  channels = load_config(path, &num_channels);
+  channels = load_config(path, &configured_channel_count,
+                        &total_channel_count);
   TEST_ASSERT_NULL(channels);
   const char *error = load_config_error();
   TEST_ASSERT_NOT_NULL(error);
@@ -364,11 +385,13 @@ void test_button_valid_config(void) {
                   "threshold = 512");
 
   channel *channels;
-  int num_channels;
+  int configured_channel_count, total_channel_count;
 
-  channels = load_config(path, &num_channels);
+  channels = load_config(path, &configured_channel_count,
+                        &total_channel_count);
   TEST_ASSERT_NOT_NULL(channels);
-  TEST_ASSERT_EQUAL_INT(1, num_channels);
+  TEST_ASSERT_EQUAL_INT(1, configured_channel_count);
+  TEST_ASSERT_EQUAL_INT(1, total_channel_count);
   TEST_ASSERT_EQUAL_INT(CTL_BUTTON, channels[0].type);
   TEST_ASSERT_EQUAL_INT(BTN_1, channels[0].code);
   TEST_ASSERT_EQUAL_INT(512, channels[0].threshold);
@@ -383,11 +406,13 @@ void test_multi_valid_config(void) {
                   "thresholds = [512]\ncodes = [\"BTN_1\", \"BTN_2\"]");
 
   channel *channels;
-  int num_channels;
+  int configured_channel_count, total_channel_count;
 
-  channels = load_config(path, &num_channels);
+  channels = load_config(path, &configured_channel_count,
+                        &total_channel_count);
   TEST_ASSERT_NOT_NULL(channels);
-  TEST_ASSERT_EQUAL_INT(1, num_channels);
+  TEST_ASSERT_EQUAL_INT(1, configured_channel_count);
+  TEST_ASSERT_EQUAL_INT(1, total_channel_count);
   TEST_ASSERT_EQUAL_INT(CTL_MULTI, channels[0].type);
   TEST_ASSERT_EQUAL_INT(2, channels[0].num_positions);
   TEST_ASSERT_EQUAL_INT(512, channels[0].thresholds[0]);
@@ -406,11 +431,13 @@ void test_multi_with_hysteresis(void) {
                   "hysteresis = 10");
 
   channel *channels;
-  int num_channels;
+  int configured_channel_count, total_channel_count;
 
-  channels = load_config(path, &num_channels);
+  channels = load_config(path, &configured_channel_count,
+                        &total_channel_count);
   TEST_ASSERT_NOT_NULL(channels);
-  TEST_ASSERT_EQUAL_INT(1, num_channels);
+  TEST_ASSERT_EQUAL_INT(1, configured_channel_count);
+  TEST_ASSERT_EQUAL_INT(1, total_channel_count);
   TEST_ASSERT_EQUAL_INT(CTL_MULTI, channels[0].type);
   TEST_ASSERT_EQUAL_INT(10, channels[0].hysteresis);
 
@@ -428,16 +455,75 @@ void test_mixed_channel_types(void) {
       "codes = [\"BTN_2\", \"BTN_3\"]");
 
   channel *channels;
-  int num_channels;
+  int configured_channel_count, total_channel_count;
 
-  channels = load_config(path, &num_channels);
+  channels = load_config(path, &configured_channel_count,
+                        &total_channel_count);
   TEST_ASSERT_NOT_NULL(channels);
-  TEST_ASSERT_EQUAL_INT(3, num_channels);
+  TEST_ASSERT_EQUAL_INT(3, configured_channel_count);
+  TEST_ASSERT_EQUAL_INT(3, total_channel_count);
   TEST_ASSERT_EQUAL_INT(CTL_AXIS, channels[0].type);
   TEST_ASSERT_EQUAL_INT(CTL_BUTTON, channels[1].type);
   TEST_ASSERT_EQUAL_INT(CTL_MULTI, channels[2].type);
 
   free_config(channels);
+}
+
+void test_total_channel_count_explicit(void) {
+  char path[256];
+  snprintf(path, sizeof(path), "%s/total_count_explicit.toml", workdir);
+  writeFile(path, "total_channel_count = 8\n\n"
+                  "[[channels]]\ntype = \"axis\"\ncode = \"ABS_X\"\n\n"
+                  "[[channels]]\ntype = \"axis\"\ncode = \"ABS_Y\"");
+
+  channel *channels;
+  int configured_channel_count, total_channel_count;
+
+  channels = load_config(path, &configured_channel_count,
+                        &total_channel_count);
+  TEST_ASSERT_NOT_NULL(channels);
+  TEST_ASSERT_EQUAL_INT(2, configured_channel_count);
+  TEST_ASSERT_EQUAL_INT(8, total_channel_count);
+
+  free_config(channels);
+}
+
+void test_total_channel_count_default(void) {
+  char path[256];
+  snprintf(path, sizeof(path), "%s/total_count_default.toml", workdir);
+  writeFile(path, "[[channels]]\ntype = \"axis\"\ncode = \"ABS_X\"\n\n"
+                  "[[channels]]\ntype = \"axis\"\ncode = \"ABS_Y\"\n\n"
+                  "[[channels]]\ntype = \"axis\"\ncode = \"ABS_RX\"");
+
+  channel *channels;
+  int configured_channel_count, total_channel_count;
+
+  channels = load_config(path, &configured_channel_count,
+                        &total_channel_count);
+  TEST_ASSERT_NOT_NULL(channels);
+  TEST_ASSERT_EQUAL_INT(3, configured_channel_count);
+  TEST_ASSERT_EQUAL_INT(3, total_channel_count);
+
+  free_config(channels);
+}
+
+void test_total_channel_count_validation_error(void) {
+  char path[256];
+  snprintf(path, sizeof(path), "%s/total_count_invalid.toml", workdir);
+  writeFile(path, "total_channel_count = 2\n\n"
+                  "[[channels]]\ntype = \"axis\"\ncode = \"ABS_X\"\n\n"
+                  "[[channels]]\ntype = \"axis\"\ncode = \"ABS_Y\"\n\n"
+                  "[[channels]]\ntype = \"axis\"\ncode = \"ABS_RX\"");
+
+  channel *channels;
+  int configured_channel_count, total_channel_count;
+
+  channels = load_config(path, &configured_channel_count,
+                        &total_channel_count);
+  TEST_ASSERT_NULL(channels);
+  const char *error = load_config_error();
+  TEST_ASSERT_NOT_NULL(error);
+  TEST_ASSERT_TRUE(strstr(error, "total_channel_count") != NULL);
 }
 
 int main(void) {
@@ -478,6 +564,11 @@ int main(void) {
   RUN_TEST(test_multi_valid_config);
   RUN_TEST(test_multi_with_hysteresis);
   RUN_TEST(test_mixed_channel_types);
+
+  // total_channel_count tests
+  RUN_TEST(test_total_channel_count_explicit);
+  RUN_TEST(test_total_channel_count_default);
+  RUN_TEST(test_total_channel_count_validation_error);
 
   return UNITY_END();
 }
