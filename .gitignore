@@ -1,6 +1,9 @@
 /ppmjoy
+/ppmdiag
 makefile.deps
 /tests/test_config
+/tests/test_args
+/tests/test_event
 
 # Coverage artifacts
 /coverage/

@@ -40,6 +40,8 @@ tests/test_config: tests/test_config.o
 
 tests/test_args: tests/test_args.o
 
+tests/test_event: tests/test_event.o tests/helpers.o
+
 $(TESTS): $(filter-out main.o, $(OBJS)) $(TEST_EXTRA_OBJS)
 	$(COMPILE)
 
@@ -58,6 +60,8 @@ $(COVERAGE_DIR)/%.o: %.c
 $(COVERAGE_DIR)/tests/test_config: $(COVERAGE_DIR)/tests/test_config.o
 
 $(COVERAGE_DIR)/tests/test_args: $(COVERAGE_DIR)/tests/test_args.o
+
+$(COVERAGE_DIR)/tests/test_event: $(COVERAGE_DIR)/tests/test_event.o $(COVERAGE_DIR)/tests/helpers.o
 
 # Link coverage test executables
 $(COVERAGE_TESTS): $(COVERAGE_OBJS) $(COVERAGE_TEST_EXTRA_OBJS)
