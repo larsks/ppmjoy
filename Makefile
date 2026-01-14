@@ -106,13 +106,14 @@ coverage: coverage-report
 
 clean:
 	rm -f $(OBJS) $(EXE)
+	rm -f keys.h
 	rm -f $(PPMDIAG_OBJS) ppmdiag
 	rm -f $(TEST_OBJS) $(TEST_EXTRA_OBJS) $(TESTS)
 	rm -rf $(COVERAGE_DIR)
 	rm -f *.gcov *.gcda *.gcno
 
 realclean: clean
-	rm -f makefile.deps keys.h
+	rm -f makefile.deps
 
 makefile.deps: $(SRCS) keys.h
 	$(CC) -MM $(CPPFLAGS) $(SRCS) $(TEST_SRCS) > $@ || { rm -f $@; exit 1; }
